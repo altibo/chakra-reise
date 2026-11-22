@@ -246,6 +246,7 @@ function renderWelcome() {
   `);
   panel.querySelectorAll("[data-mode]").forEach(b => b.onclick = () => { Sound.init(); const m = b.dataset.mode; S = fresh(); S.mode = m; S.phase = "checkin1"; S.started = Date.now(); buildMap(); render(); focusStation(); });
   const r = $("#resume"); if (r) r.onclick = () => { Sound.init(); buildMap(); render(); focusStation(); };
+  Narrator.play(["ui_welcome"]);
   camTo(500, MAP.H - 400, baseScale() * .8, 1600);
 }
 
@@ -269,6 +270,7 @@ function renderCheckin() {
       <textarea id="intent" placeholder="Ich wünsche mir …">${esc(S.intention)}</textarea>
       <div class="row" style="margin-top:18px"><button class="btn" id="next">Weiter</button></div>`, st.color);
     panel.querySelectorAll(".chip").forEach(b => b.onclick = () => { const v = b.textContent; const on = S.chips.includes(v); S.chips = on ? S.chips.filter(x => x !== v) : [...S.chips, v]; b.setAttribute("aria-pressed", !on); });
+    Narrator.play([c ? "ui_checkin1c" : "ui_checkin1"]);
     $("#next").onclick = () => { S.names = [$("#n1").value.trim(), c ? $("#n2").value.trim() : ""]; S.intention = $("#intent").value.trim(); S.phase = "checkin2"; render(); };
   } else if (S.phase === "checkin2") {
     show(`<p class="kicker">Ankommen · Momentaufnahme</p><h2>Wie geht es ${c ? "euch" : "dir"} gerade?</h2>
@@ -278,6 +280,7 @@ function renderCheckin() {
       ${slider("sBody", "Im Körper sein", "nur im Kopf", "ganz verkörpert", S.before.body)}
       ${slider("sConnect", c ? "Verbindung miteinander" : "Verbindung mit mir selbst", "getrennt", "tief verbunden", S.before.connect)}
       <div class="row" style="margin-top:18px"><button class="btn ghost" id="back">Zurück</button><button class="btn" id="next">Weiter</button></div>`, st.color);
+    Narrator.play([c ? "ui_checkin2c" : "ui_checkin2"]);
     [["sEnergy", "energy"], ["sCalm", "calm"], ["sBody", "body"], ["sConnect", "connect"]].forEach(([id, k]) => { const el = $("#" + id); el.oninput = () => { $("#" + id + "V").textContent = el.value; S.before[k] = +el.value; }; });
     $("#back").onclick = () => { S.phase = "checkin1"; render(); };
     $("#next").onclick = () => { S.phase = "checkin3"; render(); };
@@ -288,6 +291,7 @@ function renderCheckin() {
       <div class="note warn"><b>Wichtig:</b> Diese Reise ist Selbsterfahrung, keine medizinische oder psychotherapeutische Behandlung. Du bestimmst das Tempo. Augen offen lassen, pausieren oder abbrechen ist jederzeit richtig. Bei Schmerz, Schwindel oder Überwältigung: stoppen, Füße spüren, ruhig atmen.</div>
       <p class="small">In einer akuten Krise: Telefonseelsorge (kostenlos, 24 h) 0800 111 0 111 oder 0800 111 0 222 · Notruf 112.</p>
       <div class="row" style="margin-top:14px"><button class="btn ghost" id="back">Zurück</button><button class="btn" id="next">Reise beginnen ✦</button></div>`, st.color);
+    Narrator.play([c ? "ui_checkin3c" : "ui_checkin3"]);
     panel.querySelectorAll("[data-s]").forEach(b => b.onchange = () => { S.safety[b.dataset.s] = b.checked; });
     $("#back").onclick = () => { S.phase = "checkin2"; render(); };
     $("#next").onclick = () => { S.results.checkin = { status: "free", path: [] }; buildMap(); advance(); };
@@ -303,6 +307,7 @@ function renderRitual(st) {
     ${routeCard(eid, c)}
     ${done ? `<p><span class="result-badge rb-free">✓ abgeschlossen</span></p><button class="btn block" id="go">Weiter zur nächsten Station</button>`
       : `<button class="btn block" id="open">Übung öffnen</button><button class="linkish" id="skip">Station überspringen</button>`}`, c);
+  if (!done) Narrator.play(["st_" + st.id + "_note"]); else Narrator.stop();
   if (done) $("#go").onclick = advance;
   else { $("#open").onclick = () => openExercise(st, eid, () => { S.results[st.id] = { status: "free", path: [eid] }; save(); render(); }); $("#skip").onclick = () => skipStation(st); }
 }
@@ -332,13 +337,19 @@ function renderTest(st) {
       <h3 style="margin-top:18px">${esc(couple() ? t.qc : t.q)}</h3>
       <div class="opts">${t.opts.map((o, i) => `<button class="opt" data-i="${i}">${esc(couple() && o.lc ? o.lc : o.l)}</button>`).join("")}</div>
       <button class="linkish" id="skip">Station überspringen</button>`, c);
-    let timer = null;
-    $("#mtGo").onclick = () => {
+    let timer = null, started = false;
+    const cc = couple() ? "c" : "";
+    const startTimer = (manual) => {
+      if (started) return; started = true;
+      if (manual) Narrator.stop();
       Sound.bell(CHAKRAS[st.chakra || "heart"].freq * 2, .15);
-      let left = t.timer; const fg = $("#mtFg"), tt = $("#mtT"); $("#mtGo").disabled = true;
-      timer = setInterval(() => { left--; tt.textContent = left + "s"; fg.style.strokeDashoffset = 213.6 * (1 - left / t.timer);
-        if (left <= 0) { clearInterval(timer); Sound.bell(CHAKRAS[st.chakra || "heart"].freq * 2, .2); tt.textContent = "✓"; panel.querySelector(".opts").scrollIntoView({ behavior: "smooth", block: "center" }); } }, 1000);
+      let left = t.timer; const fg = $("#mtFg"), tt = $("#mtT"); $("#mtGo").disabled = true; $("#mtGo").textContent = "… Test läuft";
+      timer = setInterval(() => { if (!document.body.contains(fg)) return clearInterval(timer); left--; tt.textContent = left + "s"; fg.style.strokeDashoffset = 213.6 * (1 - left / t.timer);
+        if (left <= 0) { clearInterval(timer); Sound.bell(CHAKRAS[st.chakra || "heart"].freq * 2, .2); tt.textContent = "✓"; panel.querySelector(".opts").scrollIntoView({ behavior: "smooth", block: "center" });
+          Narrator.play([`st_${st.id}_q${cc}`]); } }, 1000);
     };
+    $("#mtGo").onclick = () => startTimer(true);
+    Narrator.play([re ? "ui_retest" : `st_${st.id}_intro`, `st_${st.id}_do${cc}`], { onEnd: () => { const btn = $("#mtGo"); if (btn) setTimeout(() => { if (document.body.contains(btn)) startTimer(false); }, 1200); } });
     panel.querySelectorAll(".opt").forEach(b => b.onclick = () => { clearInterval(timer); answer(st, t.opts[+b.dataset.i].r); });
     $("#skip").onclick = () => { clearInterval(timer); skipStation(st); };
   } else if (S.phase === "route") {
@@ -350,6 +361,7 @@ function renderTest(st) {
       ${routeCard(step.id, c, step.swapped)}
       <button class="btn block" id="open">Übung beginnen</button>
       <button class="linkish" id="skip">Übung auslassen und weitergehen</button>`, c);
+    Narrator.play([second ? "ui_route2" : couple() ? "ui_routec" : "ui_route", "ex_" + step.id + "_intro"]);
     focusExNode(st, step.id, S.attempt);
     $("#open").onclick = () => openExercise(st, step.id, () => { R.path = [...(R.path || []), step.id]; S.results[st.id] = R; S.attempt++; S.phase = "retest"; render(); }, S.attempt);
     $("#skip").onclick = () => { R.status = "moving"; S.results[st.id] = R; advance(); };
@@ -360,6 +372,7 @@ function renderTest(st) {
       <p class="lead">${esc(msg)}</p>
       ${R.path && R.path.length ? `<p class="small">Deine Übungen hier: ${R.path.map(e => esc(EXERCISES[e].title)).join(" · ")}</p>` : ""}
       <button class="btn block" id="go">Weiter ↑</button>`, c);
+    Narrator.play([R.status === "free" ? (couple() ? "ui_freec" : "ui_free") : "ui_" + R.status]);
     $("#go").onclick = advance;
     if (R.status !== "moving") Sound.bell(CHAKRAS[st.chakra || "heart"].freq * 2, .14);
   }
@@ -396,6 +409,7 @@ function renderIntegration(st) {
     show(`<div class="st-head"><div class="st-orb" style="--c:${c}">${st.icon}</div><div><p class="kicker">Letzte Station</p><h2>Integration</h2></div></div>
       <p class="lead">${S.intStep === 0 ? "Du bist durch alle Zentren gereist. Jetzt darf sich alles setzen – Stille ist der Ort, an dem Veränderung Wurzeln schlägt." : "Was ihr erlebt habt, darf gesehen und geteilt werden."}</p>
       ${routeCard(eid, c)}<button class="btn block" id="open">Übung öffnen</button><button class="linkish" id="skip">Überspringen</button>`, c);
+    Narrator.play([S.intStep === 0 ? "ui_int1" : "ui_int2"]);
     const nx = () => { S.intStep++; S.results[st.id] = { status: "free", path: list.slice(0, S.intStep) }; render(); };
     $("#open").onclick = () => openExercise(st, eid, nx, S.intStep);
     $("#skip").onclick = () => { S.intStep++; render(); };
@@ -411,6 +425,7 @@ function renderIntegration(st) {
     ${slider("aBody", "Im Körper sein", "nur im Kopf", "ganz verkörpert", S.after.body)}
     ${slider("aConnect", couple() ? "Verbindung miteinander" : "Verbindung mit mir selbst", "getrennt", "tief verbunden", S.after.connect)}
     <button class="btn block" id="fin" style="margin-top:12px">Meine Reise abschließen ❂</button>`, c);
+  Narrator.play(["ui_reflect"]);
   JOURNAL.forEach((_, i) => $("#j" + i).oninput = e => { S.journal[i] = e.target.value; save(); });
   [["aEnergy", "energy"], ["aCalm", "calm"], ["aBody", "body"], ["aConnect", "connect"]].forEach(([id, k]) => { const el = $("#" + id); el.oninput = () => { $("#" + id + "V").textContent = el.value; S.after[k] = +el.value; }; });
   $("#fin").onclick = () => {
@@ -448,6 +463,7 @@ function renderSummary() {
     ${keep.length ? `<h3>Deine Übungen für die nächsten 7 Tage</h3><p>Diese Bereiche sind in Bewegung. Täglich 5–10 Minuten wirken mehr als eine lange Sitzung: <b>${[...new Set(keep)].map(e => esc(EXERCISES[e].title)).join(" · ")}</b></p>` : `<div class="note">Alltags-Tipp: ${couple() ? "Schenkt euch täglich eine dreiminütige Schmelz-Umarmung (nach Margot Anand)." : "5 Minuten Herz-Kohärenz-Atem am Morgen halten den Fluss lebendig."}</div>`}
     ${S.journal.some(Boolean) ? `<h3>Dein Journal</h3>${JOURNAL.map((q, i) => S.journal[i] ? `<p class="small" style="margin:8px 0 2px">${esc(q)}</p><p>${esc(S.journal[i])}</p>` : "").join("")}` : ""}
     <div class="row noprint" style="margin-top:18px"><button class="btn" id="print">Als PDF / drucken</button><button class="btn ghost" id="dl">Als Text speichern</button><button class="btn ghost" id="again">Neue Reise</button></div>`, "#fde68a");
+  Narrator.play([couple() ? "ui_summaryc" : "ui_summary"]);
   $("#print").onclick = () => print();
   $("#again").onclick = () => { S = fresh(); buildMap(); render(); };
   $("#dl").onclick = () => {
@@ -512,8 +528,9 @@ function openExercise(st, eid, onDone, j = 0) {
     ov.style.setProperty("--ox", sx + "px"); ov.style.setProperty("--oy", sy + "px");
     ov.hidden = false; ov.classList.remove("closing");
     $("#exClose").focus({ preventScroll: true });
-    EXR = { ex, total, starts, t: 0, running: false, last: null, stepI: -1, pattern, raf: 0, onDone };
+    EXR = { id: eid, ex, total, starts, t: 0, running: false, last: null, stepI: -1, pattern, raf: 0, onDone };
     setStep(0, true);
+    Narrator.play(["ex_" + eid + "_intro"], { delay: 900 });
     $("#exPlay").onclick = togglePlay;
     $("#exNext").onclick = () => { const i = Math.min(steps.length - 1, EXR.stepI + 1); EXR.t = starts[i]; setStep(i); tickUI(); };
     $("#exSnd").onclick = e => { const on = Sound.toggle(); e.target.textContent = on ? "♪ Klang an" : "♪ Klang aus"; $("#soundBtn").classList.toggle("off", !on); if (on && EXR.running) startSound(); };
@@ -533,8 +550,9 @@ function togglePlay() {
   Sound.init();
   EXR.running = !EXR.running;
   $("#exPlay").textContent = EXR.running ? "❚❚ Pause" : "▶ Weiter";
-  if (EXR.running) { EXR.last = performance.now(); if (EXR.t === 0) Sound.bell(CHAKRAS[EXR.ex.chakra].freq * 2, .2); startSound(); loop(); }
-  else { cancelAnimationFrame(EXR.raf); Sound.stopAll(); }
+  const ns = Narrator.state();
+  if (EXR.running) { EXR.last = performance.now(); if (EXR.t === 0) { Sound.bell(CHAKRAS[EXR.ex.chakra].freq * 2, .2); narrateStep(0); } else if (ns.paused) Narrator.toggle(); startSound(); loop(); }
+  else { cancelAnimationFrame(EXR.raf); Sound.stopAll(); if (ns.playing) Narrator.toggle(); }
 }
 function loop() {
   if (!EXR || !EXR.running) return;
@@ -566,17 +584,24 @@ function setStep(i, silent) {
   const prev = EXR.stepI; EXR.stepI = i;
   document.querySelectorAll("#exSteps li").forEach((li, k) => { li.classList.toggle("cur", k === i); li.classList.toggle("past", k < i); });
   const li = $(`#exSteps li[data-i="${i}"]`); if (li && !silent) li.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  if (!silent && prev !== i) narrateStep(i);
   if (!silent && prev !== i && EXR.running) { Sound.bell(CHAKRAS[EXR.ex.chakra].freq * 2, .12, 2.5); if (EXR.ex.tone === "chakras") Sound.setDrone(CHAKRAS[CHAKRA_ORDER[Math.max(0, Math.min(6, i - 1))]].freq); }
+}
+function narrateStep(i) {
+  if (!EXR) return;
+  document.querySelectorAll("#exSteps li").forEach((li, k) => li.classList.toggle("speaking", k === i));
+  Narrator.play([`ex_${EXR.id}_s${i}`], { delay: 600, onEnd: () => document.querySelectorAll("#exSteps li.speaking").forEach(li => li.classList.remove("speaking")) });
 }
 function finishEx() {
   Sound.stopAll();
+  setTimeout(() => { if (EXR) Narrator.play(["ui_exdone"]); }, 2600);
   [0, 900, 1800].forEach(d => setTimeout(() => Sound.bell(CHAKRAS[EXR.ex.chakra].freq * 2, .18, 3), d));
   $("#exPlay").textContent = "↺ Nochmal"; $("#exPlay").onclick = () => { EXR.t = 0; setStep(0, true); $("#exPlay").onclick = togglePlay; togglePlay(); };
   const d = $("#exDone"); d.textContent = "✓ Übung vollendet – weiter"; d.focus();
 }
 function closeExercise(done) {
   if (!EXR) return;
-  cancelAnimationFrame(EXR.raf); Sound.stopAll();
+  cancelAnimationFrame(EXR.raf); Sound.stopAll(); Narrator.stop();
   const cb = EXR.onDone; EXR = null;
   const ov = $("#exercise"); ov.classList.add("closing");
   setTimeout(() => { ov.hidden = true; ov.innerHTML = ""; if (done && cb) cb(); focusStation(900); }, reduced ? 1 : 420);

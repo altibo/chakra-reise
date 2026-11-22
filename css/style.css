@@ -274,3 +274,21 @@ h1:focus,h2:focus{outline:none}
   .icon-btn{width:36px;height:36px;font-size:1rem}
   .ex-card h2#exTitle{font-size:1.8rem!important}
 }
+/* Erzählstimme */
+.narr{position:fixed;left:18px;bottom:18px;z-index:45;display:flex;align-items:center;gap:8px;padding:8px 10px 8px 14px;border-radius:999px;
+  background:rgba(22,14,52,.82);border:1px solid var(--line);backdrop-filter:blur(14px);box-shadow:0 10px 40px rgba(0,0,0,.4);font-size:.85rem}
+.narr-lbl{color:#e8defd;font-weight:600;letter-spacing:.04em}
+.narr-b{border:1px solid var(--line);background:rgba(255,255,255,.08);border-radius:999px;min-width:34px;height:34px;padding:0 10px;font-size:.85rem}
+.narr-b:hover{background:rgba(255,255,255,.18)}
+.narr-b.wide{background:linear-gradient(135deg,#c77dff,#7b5cff);animation:exPulse 1.4s infinite;font-weight:700}
+.narr-toggle[aria-pressed=false]{opacity:.6}
+.narr input[type=range]{width:80px;height:20px}
+.narr-ico{display:flex;align-items:flex-end;gap:2px;height:16px;width:16px}
+.narr-ico i{display:block;width:3px;height:5px;border-radius:2px;background:#d9c2ff}
+.narr.speaking .narr-ico i{animation:eq .9s ease-in-out infinite}
+.narr.speaking .narr-ico i:nth-child(2){animation-delay:.2s}.narr.speaking .narr-ico i:nth-child(3){animation-delay:.4s}
+@keyframes eq{50%{height:16px}}
+.narr.off .narr-ico i{background:#777}
+.ex-steps li.speaking .n{box-shadow:0 0 0 3px rgba(255,255,255,.35),0 0 18px var(--c)}
+@media (max-width:900px){ .narr{left:10px;right:auto;top:62px;bottom:auto;padding:5px 8px 5px 10px} .narr input[type=range]{width:60px} .narr-lbl{display:none} }
+@media print{ .narr{display:none!important} }

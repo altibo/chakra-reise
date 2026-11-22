@@ -71,5 +71,6 @@ const Sound = (() => {
     if (!enabled) stopAll(); else { init(); bell(528, 0.12, 2); }
     return enabled;
   }
-  return { init, bell, tick, startDrone, setDrone, stopDrone, startDrum, stopDrum, stopAll, toggle, get enabled() { return enabled; } };
+  function duck(on) { if (!ctx || !master) return; master.gain.cancelScheduledValues(ctx.currentTime); master.gain.setValueAtTime(master.gain.value, ctx.currentTime); master.gain.linearRampToValueAtTime(on ? 0.3 : 0.8, ctx.currentTime + 0.6); }
+  return { duck, init, bell, tick, startDrone, setDrone, stopDrone, startDrum, stopDrum, stopAll, toggle, get enabled() { return enabled; } };
 })();
