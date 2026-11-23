@@ -5,9 +5,9 @@ const STATIONS = [
   { id: "checkin", kind: "checkin", title: "Ankommen", short: "Check-in", color: "#f5d0ff", icon: "✦" },
   { id: "sacred", kind: "ritual", coupleOnly: true, title: "Heiliger Raum", short: "Herzgruß", color: "#ff9ecb", icon: "❀", ex: "c_herzgruss",
     note: "Für Paare beginnt die Reise mit einem Ritual nach Margot Anand: Raum schaffen, sich ehren, Grenzen klären." },
-  { id: "ground", kind: "ritual", title: "Erdung", short: "Erden", color: "#e2572b", icon: "⏚", ex: "wurzeln",
-    note: "Erdung zuerst – sie ist das Fundament für alles, was sich danach öffnet." },
-  { id: "nervous", kind: "test", title: "Nervensystem", short: "Nerven", color: "#f472b6", icon: "〰",
+  { id: "ankommen", kind: "ritual", trunk: true, title: "Erden & Ankommen", short: "Erden", color: "#ff7a59", icon: "⏚", ex: "ankommen", img: "trunk-arrive",
+    note: "Der Stamm beginnt am Boden. Zwei Minuten nur für dich: Atem, Füße, Sitzfläche – ankommen. Die tiefe Erdungsarbeit wartet später im Ast des Wurzelchakras, falls du sie brauchst." },
+  { id: "nervous", kind: "test", trunk: true, img: "trunk-nervous", title: "Nervensystem regulieren", short: "Nerven", color: "#f472b6", icon: "〰",
     test: {
       intro: "Wie ist dein Nervensystem gerade eingestellt? Unruhig, abgeschaltet oder ruhig-wach?",
       do: ["Lege eine Hand auf die Brust, eine auf den Bauch.", "Spüre 30 Sekunden lang Herzschlag und Atem, ohne etwas zu verändern.", "Beobachte: Tempo, Tiefe, Spannung, Wachheit."],
@@ -20,9 +20,9 @@ const STATIONS = [
       ]
     },
     routes: { over: ["seufzer", "kohaerenz"], under: ["orientieren", "klopfen"] },
-    croutes: { over: ["c_ruecken", "seufzer"], under: ["orientieren", "c_spiegel"] }
+    croutes: { over: ["seufzer", "kohaerenz"], under: ["orientieren", "klopfen"] }
   },
-  { id: "mind", kind: "test", title: "Geist", short: "Geist", color: "#a5b4fc", icon: "☁",
+  { id: "mind", kind: "test", trunk: true, img: "trunk-mind", title: "Geist beruhigen", short: "Geist", color: "#a5b4fc", icon: "☁",
     test: {
       intro: "Wie aktiv ist dein Geist? Patanjali nennt die Gedankenwellen „Vrittis“.",
       do: ["Schließe die Augen.", "Zähle 5 Atemzüge: Einatmen – Ausatmen = 1 … bis 5.", "Verlierst du den Faden, beginne wieder bei 1."],
@@ -37,7 +37,7 @@ const STATIONS = [
     routes: { blocked: ["wechselatmung", "kohaerenz"] },
     croutes: { blocked: ["c_harmonie", "wechselatmung"] }
   },
-  { id: "energy", kind: "test", title: "Lebensenergie", short: "Energie", color: "#fb923c", icon: "⚡",
+  { id: "energy", kind: "test", trunk: true, img: "trunk-energy", title: "Energetisieren", short: "Energie", color: "#fb923c", icon: "⚡",
     test: {
       intro: "Wie viel Lebenskraft (Prana) steht dir gerade zur Verfügung?",
       do: ["Steh auf.", "Wippe 10-mal auf die Zehenspitzen und zurück.", "Strecke dann die Arme weit nach oben und atme tief ein."],
@@ -48,24 +48,10 @@ const STATIONS = [
         { l: "Schwer, müde, kraftlos – es war mühsam.", lc: "Mindestens einer ist schwer und müde.", r: "blocked" }
       ]
     },
-    routes: { blocked: ["schuetteln", "feueratem>klopfen"] },
-    croutes: { blocked: ["c_spiegel", "schuetteln"] }
+    routes: { blocked: ["schuetteln", "klopfen"] },
+    croutes: { blocked: ["schuetteln", "klopfen"] }
   },
-  { id: "emotion", kind: "test", title: "Gefühl", short: "Gefühl", color: "#f9a8d4", icon: "♡",
-    test: {
-      intro: "Gefühle sind Energie in Bewegung (E-motion). Was bewegt dich gerade?",
-      do: ["Lege eine Hand auf dein Herz.", "Frage dich innerlich: „Wie geht es mir wirklich – jetzt gerade?“", "Warte drei Atemzüge auf die Antwort deines Körpers, nicht deines Kopfes."],
-      timer: 30,
-      q: "Was taucht auf?", qc: "Was taucht bei euch auf?",
-      opts: [
-        { l: "Leicht, offen, im Frieden – oder ein Gefühl, das gut fließen darf.", lc: "Bei uns beiden fühlt es sich offen und fließend an.", r: "free" },
-        { l: "Ein schweres oder festgehaltenes Gefühl (Traurigkeit, Wut, Angst, Scham, Druck).", lc: "Bei mindestens einem ist ein schweres Gefühl da.", r: "blocked" }
-      ]
-    },
-    routes: { blocked: ["gefuehl", "heart_b"] },
-    croutes: { blocked: ["c_schmelz", "gefuehl"] }
-  },
-  { id: "body", kind: "test", title: "Körperspannung", short: "Körper", color: "#67e8f9", icon: "◎",
+  { id: "body", kind: "test", trunk: true, img: "trunk-relax", title: "Entspannen", short: "Körper", color: "#67e8f9", icon: "◎",
     test: {
       intro: "Wo hält dein Körper fest? Spannung ist gespeicherte Energie.",
       do: ["Wandere mit der Aufmerksamkeit langsam von oben nach unten: Stirn, Kiefer, Schultern, Bauch, Becken, Beine.", "Prüfe: Kannst du Kiefer und Schultern ganz loslassen?"],
@@ -76,8 +62,8 @@ const STATIONS = [
         { l: "Deutliche Spannung (z. B. Kiefer, Nacken, Schultern, Bauch) oder Schmerzen.", lc: "Mindestens einer hat deutliche Spannung.", r: "blocked" }
       ]
     },
-    routes: { blocked: ["loslassen", "schuetteln"] },
-    croutes: { blocked: ["c_ruecken", "loslassen"] }
+    routes: { blocked: ["loslassen", "koerperreise"] },
+    croutes: { blocked: ["loslassen", "koerperreise"] }
   },
   { id: "root", kind: "test", chakra: "root", title: "Wurzelchakra", short: "Wurzel",
     test: {
@@ -177,8 +163,6 @@ const STATIONS = [
     routes: { blocked: ["crown_a", "crown_b"] },
     croutes: { blocked: ["c_lichtkuppel", "crown_a"] }
   },
-  { id: "flow", kind: "ritual", title: "Energiefluss", short: "Fluss", color: "#ffffff", icon: "∞", ex: "floete", cex: "c_kreislauf",
-    note: "Alle Zentren sind besucht. Jetzt verbinden wir sie zu einem einzigen, freien Strom." },
   { id: "integration", kind: "integration", title: "Integration", short: "Mitte", color: "#fde68a", icon: "❂", ex: "stille", cex: "c_teilen" }
 ];
 
@@ -211,3 +195,37 @@ const QUELLEN = [
   ["Margot Anand", "Melting Hugs – nach „The Art of Sexual Ecstasy“ (Love Coaching)", "https://www.lovecoaching.com/melting-hugs.html"],
   ["Margot Anand", "Penguin Random House: The Art of Everyday Ecstasy (Verlagsbeschreibung)", "https://www.penguinrandomhouse.com/books/3306/the-art-of-everyday-ecstasy-by-margot-anand/"]
 ];
+
+/* ===== Lebensbaum: Äste (Chakren) mit Unterästen (Lebensbereiche) und Blättern (Übungen) =====
+   leaves: Solo-Übungen · cleaves: Paar-Variante (sonst macht das Paar die Solo-Übung gemeinsam) */
+const BRANCHES = {
+  root: { scan: "Ich fühle mich unsicher, rastlos oder ohne Boden – oder nicht ganz in meinem Körper.", areas: [
+    { id: "halt", title: "Halt & Sicherheit", desc: "Tiefe Erdung: Wurzeln in die Erde, getragen sein.", leaves: ["wurzeln"], cleaves: ["c_ruecken"] },
+    { id: "kraft", title: "Lebenskraft", desc: "Stehen, halten, LAM tönen – der Wille, hier zu sein.", leaves: ["root_a"] },
+    { id: "vertrauen", title: "Urvertrauen", desc: "Atem in den Beckenboden – Vertrauen ins Leben.", leaves: ["root_b"] } ] },
+  sacral: { scan: "Mir fehlen Freude, Lust oder Kreativität – oder Gefühle stauen sich.", areas: [
+    { id: "fluss", title: "Fluss & Beweglichkeit", desc: "Das Becken wieder als Welle spüren.", leaves: ["sacral_a"], cleaves: ["c_spiegel"] },
+    { id: "lust", title: "Lust & Lebensfreude", desc: "Tanzen wie Wasser – Genuss im Körper.", leaves: ["sacral_b"] },
+    { id: "gefuehl", title: "Gefühle fließen lassen", desc: "Was festsitzt, darf gehalten werden und weiterfließen.", leaves: ["gefuehl"] } ] },
+  solar: { scan: "Ich fühle mich klein oder kraftlos – oder kann schwer Nein sagen.", areas: [
+    { id: "selbstwert", title: "Selbstwert & „Ich kann“", desc: "Kriegerkraft und HA – Raum einnehmen.", leaves: ["solar_a"], cleaves: ["c_handkraft"] },
+    { id: "feuer", title: "Feuer & Antrieb", desc: "Das innere Feuer entfachen.", leaves: ["feueratem>sonnenatem"] },
+    { id: "grenzen", title: "Grenzen & Nein", desc: "Ein klares Nein – für ein volles Ja.", leaves: ["grenzen"] } ] },
+  heart: { scan: "Mein Herz fühlt sich eng an – Groll, Einsamkeit oder harte Selbstkritik.", areas: [
+    { id: "selbstliebe", title: "Selbstliebe", desc: "Liebende Güte – auch für dich selbst.", leaves: ["heart_b"], cleaves: ["c_herzsegen"] },
+    { id: "dankbarkeit", title: "Dankbarkeit & Weite", desc: "Der Herzraum wird weit und warm.", leaves: ["heart_a"], cleaves: ["c_schmelz"] },
+    { id: "vergebung", title: "Vergebung", desc: "Lösen, was das Herz noch beschwert.", leaves: ["vergebung"] } ] },
+  throat: { scan: "Ich halte etwas zurück, finde schwer Worte oder fühle mich nicht gehört.", areas: [
+    { id: "stimme", title: "Stimme & Klang", desc: "Summen und Klang öffnen die Kehle.", leaves: ["throat_a"], cleaves: ["c_toenen"] },
+    { id: "wahrheit", title: "Wahrheit aussprechen", desc: "Vokale tönen und Wahres sagen.", leaves: ["throat_b"] },
+    { id: "lauschen", title: "Zuhören & Empfangen", desc: "Ausdruck beginnt mit Lauschen.", leaves: ["lauschen"] } ] },
+  third: { scan: "Mein Kopf ist neblig, ich sehe nicht klar oder traue meiner Intuition nicht.", areas: [
+    { id: "fokus", title: "Fokus & Klarheit", desc: "Ein Punkt, ein Blick – der Geist sammelt sich.", leaves: ["third_a"], cleaves: ["c_augenblick"] },
+    { id: "intuition", title: "Intuition & innere Sicht", desc: "OM in der Stirn – das innere Licht.", leaves: ["third_b"] } ] },
+  crown: { scan: "Ich fühle mich abgeschnitten, sinnlos oder ohne Verbindung zu etwas Größerem.", areas: [
+    { id: "weite", title: "Weite & Licht", desc: "Eine Säule aus Licht durch dich hindurch.", leaves: ["crown_a"], cleaves: ["c_lichtkuppel"] },
+    { id: "stille", title: "Stille & Hingabe", desc: "Nichts tun. Dankbar sein. Sein.", leaves: ["crown_b"] },
+    { id: "einheit", title: "Einheit – alle Zentren", desc: "Die Innere Flöte verbindet alle sieben Zentren.", leaves: ["floete"], cleaves: ["c_kreislauf"] } ] }
+};
+/* Hinweise aus dem Stamm: welche Äste ein Stamm-Ergebnis nahelegt */
+const TRUNK_HINTS = { nervous: { over: ["root"], under: ["root", "solar"] }, mind: { blocked: ["third"] }, energy: { blocked: ["solar", "sacral"] }, body: { blocked: ["root", "sacral"] } };

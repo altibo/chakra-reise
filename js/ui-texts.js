@@ -1,7 +1,7 @@
 "use strict";
 /* Gesprochene Texte der Oberfläche (Schlüssel → Text). Übungs- und Test-Texte kommen aus den Daten-Dateien. */
 const NARR_UI = {
-  welcome: "Willkommen zur Energie- und Chakra-Reise. Werde wieder heil, energetisiert und verbunden. Mit kleinen Mini-Tests spürst du, wo deine Energie fließt und wo sie stockt – im Nervensystem, im Geist, im Gefühl und in den sieben Chakren. Wo etwas blockiert ist, öffnet sich die passende Übung. Danach prüfst du erneut. Wähle, ob du allein reist oder als Paar.",
+  welcome: "Willkommen zur Energie- und Chakra-Reise – deinem Lebensbaum. Zuerst wächst der Stamm, für alle gleich: ankommen und erden, das Nervensystem regulieren, den Geist beruhigen, Energie wecken und entspannen. Von dort wachsen die sieben Chakren als Äste, und du gehst gezielt in die, die dich heute rufen. Jede Übung ist ein Blatt, das grün aufleuchtet, wenn du es geschafft hast. Wähle, ob du allein reist oder als Paar.",
   checkin1: "Willkommen. Nimm dir einen Moment. Komm an, hier und jetzt. Wo bist du gerade – und wohin möchtest du heute? Wähle eine Absicht für diese Reise, oder schreibe sie in eigenen Worten.",
   checkin1c: "Willkommen, ihr zwei. Nehmt euch einen Moment, um anzukommen. Wo steht ihr gerade – und wohin möchtet ihr heute gemeinsam? Wählt eine Absicht für diese Reise, oder schreibt sie in eigenen Worten.",
   checkin2: "Wie geht es dir gerade? Schätze spontan ein, ohne nachzudenken: deine Energie, deine innere Ruhe, wie sehr du im Körper bist, und wie verbunden du dich mit dir selbst fühlst. Am Ende vergleichen wir.",
@@ -16,10 +16,16 @@ const NARR_UI = {
   freec: "Hier fließt es bei euch. Wunderbar!",
   resolved: "Spürst du es? Etwas hat sich gelöst. Nimm dir einen Atemzug, um diese Veränderung bewusst zu würdigen.",
   moving: "Manches braucht mehr Zeit als eine Übung. Das ist kein Scheitern: Du hast Energie in Bewegung gebracht, und sie arbeitet weiter. Wir gehen sanft weiter – vielleicht nimmst du diese Übung in den nächsten Tagen mit.",
-  int1: "Du bist durch alle Zentren gereist. Jetzt darf sich alles setzen. Stille ist der Ort, an dem Veränderung Wurzeln schlägt.",
+  int1: "Dein Baum leuchtet. Jetzt darf sich alles setzen. Stille ist der Ort, an dem Veränderung Wurzeln schlägt.",
   int2: "Was ihr erlebt habt, darf gesehen und geteilt werden.",
   reflect: "Was nimmst du mit? Schreib frei, ohne zu korrigieren. Was hat sich in deinem Körper verändert? Welches Zentrum hat heute am deutlichsten zu dir gesprochen? Welchen Satz nimmst du mit? Und welche kleine Praxis schenkst du dir für die nächsten sieben Tage? Danach schätze noch einmal ein, wie es dir jetzt geht.",
   summary: "Deine Reise ist vollendet. Du bist in deiner Mitte angekommen. Energie, die in Bewegung gekommen ist, wirkt weiter – in den nächsten Stunden und Tagen. Trink etwas Wasser, bleib noch einen Moment bei dir, und nimm die Stille mit in deinen Alltag.",
   summaryc: "Eure Reise ist vollendet. Ihr seid in eurer Mitte angekommen, und im gemeinsamen Fluss. Energie, die in Bewegung gekommen ist, wirkt weiter. Trinkt etwas Wasser, bleibt noch einen Moment beieinander, und nehmt diese Verbindung mit in euren Alltag.",
+  scan: "Der Stamm steht. Jetzt schauen wir in die Krone. Lies die sieben Sätze und spüre bei jedem kurz nach: Trifft das gerade auf dich zu? Wähle alles, was sich wahr anfühlt. Daraus ergeben sich die Äste, die dich heute rufen.",
+  scanc: "Euer Stamm steht. Jetzt schauen wir gemeinsam in die Krone. Lest die sieben Sätze und spürt bei jedem kurz nach: Trifft das gerade auf einen von euch zu? Wählt alles, was sich wahr anfühlt. Daraus ergeben sich die Äste, die euch heute rufen.",
+  hub: "Willkommen in der Krone deines Baumes. Hier verzweigen sich die sieben Chakren. Die empfohlenen Äste leuchten auf – am besten gehst du von unten nach oben. Du kannst aber jeden Ast frei wählen, so viele du möchtest, und jederzeit hierher zurückkehren. Wenn es sich vollständig anfühlt, schließe deine Reise mit der Integration ab.",
+  areas: "Dieser Ast teilt sich in Zweige – verschiedene Lebensbereiche dieses Zentrums. Wähle den Zweig, der dich am meisten anspricht. Die Übung daran ist ein Blatt.",
+  areas2: "Es hat sich noch nicht ganz gelöst. Das ist in Ordnung. Vielleicht ruft dich ein anderer Zweig dieses Astes.",
+  branchdone: "Kehre zurück zur Krone deines Baumes und wähle, wohin es dich als Nächstes zieht – oder schließe deine Reise ab.",
   exdone: "Die Übung ist vollendet. Spüre noch einen Moment nach. Wenn du bereit bist, geh weiter."
 };

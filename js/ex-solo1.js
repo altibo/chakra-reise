@@ -4,7 +4,7 @@ Object.assign(EXERCISES, {
   wurzeln: {
     title: "Wurzeln schlagen", chakra: "root", pose: "stand", fx: ["roots"], minutes: 4, intensity: "sanft",
     origin: ["Yoga (Tadasana)", "Embodiment", "Wissenschaft: Interozeption"], breath: "calm",
-    intro: "Bevor sich etwas öffnen darf, braucht es Boden. Erdung zuerst: Sie beruhigt das Nervensystem und gibt Halt.",
+    intro: "Die tiefe Erdung des Wurzelchakras: Wurzeln in die Erde schlagen, bis du dich ganz getragen fühlst. Halt beginnt bei den Füßen.",
     steps: [
       [30, "Stell dich hüftbreit hin, am besten barfuß. Knie ganz leicht weich, Augen offen oder sanft geschlossen."],
       [45, "Verlagere das Gewicht langsam nach vorn, nach hinten, nach links, nach rechts – und finde die Mitte, in der du mühelos stehst."],

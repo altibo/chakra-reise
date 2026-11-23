@@ -149,7 +149,17 @@ const Illu = (() => {
   }
 
   let uid = 0;
-  function render(ex, opts = {}) {
+  /* Generierte Bilder (img/pose-*.webp) ersetzen die Vektorfiguren */
+  function poseImg(ex) { return "pose-" + (ex.pose || "sit"); }
+  function render(ex) {
+    const color = CHAKRAS[ex.chakra].color;
+    return `<div class="illu-img ${ex.fx && ex.fx.includes("shake") ? "shaking" : ""}" style="--c:${color}" role="img" aria-label="Bild: ${ex.title}">
+      <img src="img/${poseImg(ex)}.webp" alt="" loading="lazy"><span class="illu-glow"></span></div>`;
+  }
+  function thumb(ex) {
+    return `<span class="illu-thumb" style="--c:${CHAKRAS[ex.chakra].color};background-image:url(img/${poseImg(ex)}.webp)"></span>`;
+  }
+  function renderSvg(ex, opts = {}) {
     const id = ++uid;
     const color = CHAKRAS[ex.chakra].color;
     let pose = ex.pose, tfs = [""], basePose = pose;
@@ -201,5 +211,5 @@ const Illu = (() => {
     s += `<circle cx="150" cy="150" r="22" fill="#fff" opacity=".9" filter="url(#mg)"/><circle cx="150" cy="150" r="10" fill="#fff"/></svg>`;
     return s;
   }
-  return { render, flame, mandala };
+  return { render, renderSvg, thumb, poseImg, flame, mandala };
 })();
