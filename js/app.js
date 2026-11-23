@@ -378,19 +378,37 @@ function refreshMap(initial) {
 }
 
 /* Kamera */
-function viewCenter() {
-  const mob = innerWidth <= 900;
-  if (mob) { const pt_ = mobTop(); return [innerWidth / 2, 116 + (pt_ - 116) / 2]; }
-  return [(innerWidth - $("#panel").offsetWidth - 36) / 2, innerHeight / 2 + 20];
+/* Freie Kartenfläche (ohne Kachel, Leisten) – Basis für Zentrieren & Einpassen */
+const isMob = () => innerWidth <= 900 || innerHeight <= 520;
+const isLand = () => innerHeight <= 520 && innerWidth > innerHeight;
+let sheet = "half";
+function mapRect() {
+  const W = innerWidth, H = innerHeight, p = $("#panel"), nb = $("#navBar"), min = sheet === "min";
+  if (!isMob()) return { x0: 70, y0: 70, x1: min ? W - 10 : p.offsetLeft - 18, y1: H - 10 };
+  if (isLand()) return { x0: 56, y0: 50, x1: min ? W - 60 : p.offsetLeft - 64, y1: H - (nb.hidden ? 8 : 66) };
+  const navTop = nb.hidden ? H - 8 : nb.offsetTop;
+  return { x0: 0, y0: 96, x1: W - 54, y1: Math.max(200, (min ? navTop : p.offsetTop) - 6) };
 }
-function viewSize() {
-  if (innerWidth <= 900) return [innerWidth - 16, Math.max(120, mobTop() - 126)];
-  return [innerWidth - $("#panel").offsetWidth - 70, innerHeight - 110];
+function viewCenter() { const r = mapRect(); return [(r.x0 + r.x1) / 2, (r.y0 + r.y1) / 2]; }
+function viewSize() { const r = mapRect(); return [Math.max(120, r.x1 - r.x0 - 20), Math.max(110, r.y1 - r.y0 - 20)]; }
+/* Kachel (Panel) ein-/ausblenden: half = normal, full = groß, min = ausgeblendet */
+function setSheet(st, recenter = true) {
+  if (st === sheet) return;
+  const [ocx, ocy] = viewCenter(), wx = (ocx - cam.x) / cam.s, wy = (ocy - cam.y) / cam.s;
+  sheet = st;
+  document.body.classList.toggle("sheet-min", st === "min");
+  document.body.classList.toggle("sheet-full", st === "full");
+  const lbl = st === "min" ? "Kachel einblenden" : "Kachel ausblenden";
+  $$(".sheet-toggle").forEach(b => { b.setAttribute("aria-label", lbl); b.title = lbl; b.classList.toggle("on", st !== "min"); });
+  $("#panel").setAttribute("aria-hidden", st === "min");
+  if (recenter) camTo(wx, wy, cam.s, reduced ? 1 : 420);
 }
-function mobTop() { const r = $("#panel").getBoundingClientRect(); return Math.max(260, Math.min(innerHeight, r.top || innerHeight)); }
+function toggleSheet() { setSheet(sheet === "min" ? "half" : "min"); }
 function camTo(x, y, s, dur = 1400) {
   const [cx, cy] = viewCenter();
-  const to = { s, x: cx - x * s, y: cy - y * s };
+  return camAnim({ s, x: cx - x * s, y: cy - y * s }, dur);
+}
+function camAnim(to, dur) {
   if (reduced) dur = 1;
   const from = { s: cam.s, x: cam.x, y: cam.y }, t0 = performance.now();
   cam.tx = to;
@@ -434,18 +452,95 @@ function focusNode(dur = 1300) {
   return fitNodes([id, ...leafIds(l => l.owner === id)], mob ? 110 : 190, dur, baseScale() * 1.15);
 }
 let overview = false;
-function showWholeTree(dur = 1200) { return fitBox(0, 0, MAP.W, MAP.H, dur, 1); }
+function showWholeTree(dur = 1200) {
+  /* Baum selbst (Knoten + Blattbeschriftung + Wurzeln) statt des ganzen Rahmenkreises einpassen */
+  const P = Object.values(MAP.nodes); if (!P.length) return fitBox(0, 0, MAP.W, MAP.H, dur, 1);
+  const ck = MAP.nodes.checkin, xs = P.map(p => p.x), ys = P.map(p => p.y);
+  const pad = isMob() ? 70 : 130;
+  return fitBox(Math.min(...xs) - pad, Math.min(...ys) - 90, Math.max(...xs) + pad, Math.max(ck ? ck.y + 260 : 0, ...ys) + 20, dur, 1);
+}
 function toggleOverview() { overview = !overview; if (overview) showWholeTree(); else focusNode(1000); }
 /* Ziehen / Zoomen der Karte */
+const clampS = v => Math.max(.08, Math.min(3.5, v));
+function zoomAt(px, py, f, dur = 320) {
+  const ns = clampS(cam.s * f);
+  return camAnim({ s: ns, x: px - (px - cam.x) * ns / cam.s, y: py - (py - cam.y) * ns / cam.s }, dur);
+}
+function zoomCenter(f) { const [cx, cy] = viewCenter(); return zoomAt(cx, cy, f); }
+/* Gesten: Ein-Finger-Pan mit Trägheit, Pinch-Zoom, Doppeltipp, Mausrad */
 (function panzoom() {
-  const svg = $("#map"); let drag = null;
-  svg.addEventListener("pointerdown", e => { drag = { x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y }; MAP.dragged = false; cam.tx = null; });
-  svg.addEventListener("pointermove", e => { if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (Math.abs(dx) + Math.abs(dy) > 6) MAP.dragged = true;
-    if (MAP.dragged) { cam.x = drag.cx + dx; cam.y = drag.cy + dy; applyCam(); } });
-  addEventListener("pointerup", () => { drag = null; setTimeout(() => MAP.dragged = false, 0); });
-  svg.addEventListener("wheel", e => { e.preventDefault(); cam.tx = null; const k = Math.exp(-e.deltaY * .0012); const ns = Math.max(.12, Math.min(3, cam.s * k));
+  const svg = $("#map"), pts = new Map();
+  let g = null, inertia = 0, lastTap = null;
+  const onMapGesture = () => { if (isMob() && !isLand() && sheet !== "min") setSheet("min", false); hideTip(); };
+  function begin() {
+    const P = [...pts.values()];
+    if (P.length === 1) g = { mode: "pan", x: P[0].x, y: P[0].y, cx: cam.x, cy: cam.y, moved: false, hist: [] };
+    else if (P.length >= 2) {
+      const [a, b] = P;
+      g = { mode: "pinch", d: Math.hypot(a.x - b.x, a.y - b.y) || 1, mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2, s: cam.s, cx: cam.x, cy: cam.y };
+      MAP.dragged = true; onMapGesture();
+    }
+  }
+  svg.addEventListener("pointerdown", e => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    cancelAnimationFrame(inertia); cam.tx = null;
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pts.size === 1) MAP.dragged = false;
+    begin();
+  });
+  addEventListener("pointermove", e => {
+    if (!pts.has(e.pointerId)) return;
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (!g) return;
+    if (g.mode === "pan") {
+      const dx = e.clientX - g.x, dy = e.clientY - g.y;
+      if (!g.moved && Math.abs(dx) + Math.abs(dy) > (e.pointerType === "mouse" ? 5 : 10)) { g.moved = true; MAP.dragged = true; onMapGesture(); }
+      if (g.moved) {
+        cam.x = g.cx + dx; cam.y = g.cy + dy; applyCam();
+        g.hist.push({ x: e.clientX, y: e.clientY, t: performance.now() }); if (g.hist.length > 6) g.hist.shift();
+      }
+    } else {
+      const [a, b] = [...pts.values()];
+      const d = Math.hypot(a.x - b.x, a.y - b.y) || 1, mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2, ns = clampS(g.s * d / g.d);
+      cam.s = ns; cam.x = mx - (g.mx - g.cx) * ns / g.s; cam.y = my - (g.my - g.cy) * ns / g.s; applyCam();
+    }
+  }, { passive: true });
+  function glide(h) {
+    if (reduced || h.length < 2) return;
+    const a = h[0], b = h[h.length - 1], dt = b.t - a.t;
+    if (dt <= 0 || performance.now() - b.t > 80) return;
+    let vx = (b.x - a.x) / dt * 16, vy = (b.y - a.y) / dt * 16;
+    const step = () => { vx *= .92; vy *= .92; cam.x += vx; cam.y += vy; applyCam(); if (Math.abs(vx) + Math.abs(vy) > .4) inertia = requestAnimationFrame(step); };
+    inertia = requestAnimationFrame(step);
+  }
+  function tap(e) {
+    if (e.pointerType === "mouse") return;
+    const now = performance.now();
+    if (lastTap && now - lastTap.t < 320 && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 36) {
+      lastTap = null; MAP.dragged = true; onMapGesture(); zoomAt(e.clientX, e.clientY, 2);
+    } else lastTap = { t: now, x: e.clientX, y: e.clientY };
+  }
+  const end = e => {
+    if (!pts.has(e.pointerId)) return;
+    pts.delete(e.pointerId);
+    if (g && g.mode === "pan" && pts.size === 0) { if (g.moved) glide(g.hist); else if (e.type === "pointerup") tap(e); }
+    if (pts.size > 0) { begin(); if (g) g.moved = true; }
+    else { g = null; setTimeout(() => MAP.dragged = false, 0); }
+  };
+  addEventListener("pointerup", end); addEventListener("pointercancel", end);
+  svg.addEventListener("dblclick", e => { e.preventDefault(); zoomAt(e.clientX, e.clientY, 2); });
+  svg.addEventListener("wheel", e => { e.preventDefault(); cancelAnimationFrame(inertia); cam.tx = null;
+    const ns = clampS(cam.s * Math.exp(-e.deltaY * (e.ctrlKey ? .01 : .0012)));
     cam.x = e.clientX - (e.clientX - cam.x) * ns / cam.s; cam.y = e.clientY - (e.clientY - cam.y) * ns / cam.s; cam.s = ns; applyCam(); }, { passive: false });
+  /* iOS: Browser-Zoom über der Karte verhindern */
+  ["gesturestart", "gesturechange"].forEach(t => svg.addEventListener(t, e => e.preventDefault()));
 })();
+/* Karten-Steuerung (+ − Einpassen, Zentrieren, Kachel) */
+$("#zoomIn").onclick = () => zoomCenter(1.5);
+$("#zoomOut").onclick = () => zoomCenter(1 / 1.5);
+$("#fitBtn").onclick = () => { overview = true; showWholeTree(700); };
+$("#meBtn").onclick = () => { overview = false; focusNode(700); };
+$$(".sheet-toggle").forEach(b => b.onclick = toggleSheet);
 
 /* ================= Navigation ================= */
 function defaultPhase(id) {
@@ -501,8 +596,20 @@ const panel = $("#panel");
 function show(html, color) {
   panel.classList.remove("anim"); void panel.offsetWidth;
   panel.style.setProperty("--c", color || "#c77dff");
-  panel.innerHTML = html; panel.scrollTop = 0; panel.classList.add("anim");
+  panel.innerHTML = `<button class="sheet-grip" aria-label="Kachel ausblenden (nach unten wischen)" title="Kachel ausblenden"><i></i></button>` + html; panel.scrollTop = 0; panel.classList.add("anim");
+  if (sheet === "min") setSheet("half", false);
+  bindGrip();
   const h = panel.querySelector("h1,h2"); if (h) { h.setAttribute("tabindex", "-1"); h.focus({ preventScroll: true }); }
+}
+/* Griff der Kachel: tippen = ausblenden, wischen hoch/runter = größer/kleiner */
+function bindGrip() {
+  const gp = panel.querySelector(".sheet-grip"); if (!gp) return;
+  let y0 = null;
+  gp.addEventListener("pointerdown", e => { y0 = e.clientY; gp.setPointerCapture(e.pointerId); });
+  gp.addEventListener("pointerup", e => {
+    if (y0 === null) return; const dy = e.clientY - y0; y0 = null;
+    if (dy < -30) setSheet("full"); else if (dy > 30) setSheet(sheet === "full" ? "half" : "min"); else setSheet(sheet === "full" ? "half" : "min");
+  });
 }
 function render() {
   if (S.node) S.visited[S.node] = true;
