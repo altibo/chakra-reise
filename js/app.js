@@ -312,6 +312,7 @@ function buildMap() {
     el.addEventListener("pointermove", e => moveTip(e));
     el.addEventListener("pointerleave", hideTip);
   });
+  if (use3D()) T3.build();
   refreshMap(true);
   applyCam();
 }
@@ -338,6 +339,26 @@ function clickNode(id) {
   }
   go(id);
 }
+/* ---------- 3D-Ansicht (js/tree3d.js) mit 2D-Karte als Ausweich ---------- */
+const VKEY = "chakraReise.view";
+let VIEW = localStorage.getItem(VKEY) || (reduced ? "2d" : "3d");
+const use3D = () => VIEW === "3d" && !!(window.T3 && T3.ok);
+function setView(v) {
+  VIEW = v; localStorage.setItem(VKEY, v);
+  const on = use3D();
+  if (window.T3 && T3.ok) T3.activate(on);
+  const b = $("#viewBtn");
+  if (b) { b.textContent = on ? "2D" : "3D"; b.title = on ? "Zur flachen 2D-Karte wechseln" : "Zum 3D-Baum wechseln"; b.setAttribute("aria-label", b.title); }
+  if (on) { T3.build(); T3.refresh(); }
+  if (S.phase === "welcome" || !S.node) { showWholeTree(on ? 1 : 900); if (on) T3.spin(true); }
+  else focusNode(on ? 1 : 700);
+}
+window.onT3Ready = () => {
+  const b = $("#viewBtn");
+  if (!(window.T3 && T3.ok)) { if (b) b.hidden = true; VIEW = "2d"; return; }
+  if (b) b.hidden = false;
+  setView(VIEW);
+};
 function refreshMap(initial) {
   const on = (key, v) => { const el = $(`[data-p="${CSS.escape(key)}"]`); if (el) el.classList.toggle("on", !!v); };
   const T = [...trunkIds(), "hub"];
@@ -375,6 +396,7 @@ function refreshMap(initial) {
   const bloom = CHAKRA_ORDER.filter(c => ["free", "resolved"].includes(statusOf(c))).length;
   $("#progress").innerHTML = S.phase === "welcome" ? "" : `<span class="prog-item" title="Stamm"><i class="pi-trunk"></i>Stamm ${tDone}/${tAll}</span><span class="prog-item" title="Leuchtende Blätter"><i class="pi-leaf"></i>${leavesAll} Blätter</span><span class="prog-item" title="Blühende Äste"><i class="pi-bloom"></i>${bloom}/7 Äste</span>
     <span class="sr-only">Aktuell: ${esc(S.node ? nodeTitle(S.node) : "")}</span>`;
+  if (use3D()) T3.refresh();
 }
 
 /* Kamera */
@@ -401,6 +423,7 @@ function setSheet(st, recenter = true) {
   const lbl = st === "min" ? "Kachel einblenden" : "Kachel ausblenden";
   $$(".sheet-toggle").forEach(b => { b.setAttribute("aria-label", lbl); b.title = lbl; b.classList.toggle("on", st !== "min"); });
   $("#panel").setAttribute("aria-hidden", st === "min");
+  if (use3D()) { requestAnimationFrame(() => T3.relayout()); return; }
   if (recenter) camTo(wx, wy, cam.s, reduced ? 1 : 420);
 }
 function toggleSheet() { setSheet(sheet === "min" ? "half" : "min"); }
@@ -440,6 +463,7 @@ function fitNodes(ids, pad, dur, maxS) {
 }
 function focusNode(dur = 1300) {
   const id = S.node; if (!id) return;
+  if (use3D()) return T3.focus(id, dur);
   const key = id.startsWith("x:") ? "L:" + id.slice(2) : id, n = MAP.nodes[key]; if (!n) return;
   const leafIds = pred => Object.keys(MAP.nodes).filter(k => MAP.nodes[k].kind === "leaf" && pred(MAP.nodes[k]));
   const mob = innerWidth <= 900;
@@ -453,6 +477,7 @@ function focusNode(dur = 1300) {
 }
 let overview = false;
 function showWholeTree(dur = 1200) {
+  if (use3D()) return T3.overview(dur);
   /* Baum selbst (Knoten + Blattbeschriftung + Wurzeln) statt des ganzen Rahmenkreises einpassen */
   const P = Object.values(MAP.nodes); if (!P.length) return fitBox(0, 0, MAP.W, MAP.H, dur, 1);
   const ck = MAP.nodes.checkin, xs = P.map(p => p.x), ys = P.map(p => p.y);
@@ -466,7 +491,7 @@ function zoomAt(px, py, f, dur = 320) {
   const ns = clampS(cam.s * f);
   return camAnim({ s: ns, x: px - (px - cam.x) * ns / cam.s, y: py - (py - cam.y) * ns / cam.s }, dur);
 }
-function zoomCenter(f) { const [cx, cy] = viewCenter(); return zoomAt(cx, cy, f); }
+function zoomCenter(f) { if (use3D()) return T3.zoom(f); const [cx, cy] = viewCenter(); return zoomAt(cx, cy, f); }
 /* Gesten: Ein-Finger-Pan mit Trägheit, Pinch-Zoom, Doppeltipp, Mausrad */
 (function panzoom() {
   const svg = $("#map"), pts = new Map();
@@ -541,6 +566,7 @@ $("#zoomOut").onclick = () => zoomCenter(1 / 1.5);
 $("#fitBtn").onclick = () => { overview = true; showWholeTree(700); };
 $("#meBtn").onclick = () => { overview = false; focusNode(700); };
 $$(".sheet-toggle").forEach(b => b.onclick = toggleSheet);
+$("#viewBtn").onclick = () => setView(use3D() ? "2d" : "3d");
 
 /* ================= Navigation ================= */
 function defaultPhase(id) {
@@ -654,7 +680,7 @@ function renderWelcome() {
   $$("[data-mode]", panel).forEach(b => b.onclick = () => { Sound.init(); const m = b.dataset.mode; S = fresh(); S.mode = m; S.started = Date.now(); buildMap(); go("checkin"); });
   const r = $("#resume"); if (r) r.onclick = () => { Sound.init(); buildMap(); go(S.node); };
   Narrator.play(["ui_welcome"]);
-  setTimeout(() => showWholeTree(1800), 50);
+  setTimeout(() => { showWholeTree(1800); if (use3D()) T3.spin(true); }, 50);
 }
 
 /* ---------- Check-in ---------- */
@@ -1018,6 +1044,7 @@ function renderSummary() {
 function highlightLeaf(owner, eid) {
   $$(".m-leaf.cur").forEach(x => x.classList.remove("cur"));
   const el = $(`.m-leaf[data-key="${owner}:${eid}"]`); if (el) el.classList.add("cur");
+  if (use3D()) return T3.focus(`L:${owner}:${eid}`, 1200);
   const n = MAP.nodes[`L:${owner}:${eid}`], o = MAP.nodes[owner];
   if (n && o) camTo((n.x + o.x) / 2, (n.y + o.y) / 2, baseScale() * 1.1, 1200);
 }
@@ -1027,7 +1054,7 @@ function openExercise(owner, eid, onDone) {
   const node = MAP.nodes[`L:${owner}:${eid}`] || MAP.nodes[owner] || { x: MAP.W / 2, y: MAP.H / 2 };
   const ownerTitle = ST[owner] ? ST[owner].title : nodeTitle(owner);
   const go_ = () => {
-    const sx = node.x * cam.s + cam.x, sy = node.y * cam.s + cam.y;
+    const [sx, sy] = use3D() ? T3.screenOf(`L:${owner}:${eid}`) : [node.x * cam.s + cam.x, node.y * cam.s + cam.y];
     const ov = $("#exercise");
     const steps = ex.steps; const total = steps.reduce((a, s) => a + s[0], 0);
     let acc = 0; const starts = steps.map(s => { const v = acc; acc += s[0]; return v; });
@@ -1079,7 +1106,8 @@ function openExercise(owner, eid, onDone) {
     $("#exDone").onclick = () => closeExercise(true);
     $("#exClose").onclick = () => closeExercise(false);
   };
-  if (MAP.nodes[`L:${owner}:${eid}`] && !reduced) camTo(node.x, node.y, 2.2, 650).then(go_); else go_();
+  if (use3D()) T3.flyToLeaf(`L:${owner}:${eid}`).then(go_);
+  else if (MAP.nodes[`L:${owner}:${eid}`] && !reduced) camTo(node.x, node.y, 2.2, 650).then(go_); else go_();
 }
 const fmt = s => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
 function startSound() {

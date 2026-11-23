@@ -34,6 +34,7 @@
     <button id="zoomOut" aria-label="Herauszoomen" title="Herauszoomen">−</button>
     <button id="fitBtn" aria-label="Ganzen Baum einpassen" title="Ganzen Baum einpassen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
     <button id="meBtn" aria-label="Auf meine Station zentrieren" title="Auf meine Station zentrieren"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></button>
+    <button id="viewBtn" class="view-btn" hidden aria-label="Zum 3D-Baum wechseln" title="Zum 3D-Baum wechseln">3D</button>
     <button class="sheet-toggle on" id="sheetBtn2" aria-label="Kachel ausblenden" title="Kachel ausblenden"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M4 13h16"/></svg></button>
   </div>
   <section id="panel" class="panel" aria-live="polite"></section>
@@ -63,5 +64,6 @@
 <script src="js/narration-manifest.js"></script>
 <script src="js/narrator.js"></script>
 <script src="js/app.js"></script>
+<script type="module" src="js/tree3d.js"></script>
 </body>
 </html>

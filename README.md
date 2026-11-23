@@ -17,3 +17,8 @@ Quellen & Recherche: siehe Info-Dialog (i) in der App.
 - Jede Übung und jeder Mini-Test zeigt eine **Vorbereitung**: Position, Augen, Hände, Hilfsmittel, Platz (`js/setup.js`) – und Seraphina sagt sie vor dem ersten Schritt an.
 - Wechselt die Körperhaltung zwischen zwei Übungen/Tests, kündigt die Stimme den **Positionswechsel** kurz an.
 - Die Karte ist ein organischer Lebensbaum: Wurzeln bis zum Rahmenkreis, Stamm mit Rinde, natürlich verzweigte Chakra-Äste – jede Übung ist ein Büschel aus 6–9 Blättern.
+
+## Handy-Navigation & 3D-Baum
+- **Handy:** Daumenleiste unten (◀ 🌳 Ort ▤ ▶), Kachel als Bottom-Sheet (Griff tippen/wischen, ▤ ein-/ausblenden), Baum im Vollbild, Pinch-Zoom, Ein-Finger-Pan mit Trägheit, Doppeltipp-Zoom, Buttons + − ⤢ ◎. Querformat mit Kachel rechts.
+- **3D-Lebensbaum** (`js/tree3d.js`, Three.js r160 lokal in `js/vendor/`): Stamm, Wurzeln, räumlich verzweigte Chakra-Äste, Blätter-Büschel (instanziert), Sternenhimmel, Glow. Ziehen = drehen, zwei Finger = zoomen/verschieben, Doppeltipp = hinfliegen. Layout wird aus `STATIONS`/`BRANCHES` berechnet (goldener Winkel) – neue Äste, Bereiche oder Übungen finden automatisch Platz.
+- Umschalter **3D/2D** in der Kartensteuerung. Ohne WebGL oder bei „Bewegung reduzieren“ startet automatisch die 2D-Karte.

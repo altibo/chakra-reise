@@ -577,3 +577,24 @@ body.sheet-min .panel{transform:translateX(calc(100% + 40px));opacity:0;pointer-
 }
 #overviewBtn{display:none!important}
 @media (max-width:900px),(max-height:520px){ .narr-b{min-width:42px;height:42px} }
+
+/* ===== 3D-Lebensbaum ===== */
+#map3d{position:absolute;inset:0;width:100%;height:100%;touch-action:none;display:none;cursor:grab}
+#map3d:active{cursor:grabbing}
+#labels3d{position:absolute;inset:0;pointer-events:none;overflow:hidden;display:none;z-index:2}
+body.v3d #map{visibility:hidden;pointer-events:none}
+body.v3d #map3d,body.v3d #labels3d{display:block}
+.view-btn{font-size:.85rem!important;font-weight:800;letter-spacing:.04em;color:#bfffdc!important}
+.l3{position:absolute;left:0;top:0;pointer-events:auto;display:flex;flex-direction:column;align-items:center;gap:0;padding:3px 9px;border-radius:10px;
+  background:rgba(10,6,28,.58);border:1px solid rgba(255,255,255,.12);color:#f4efff;font:600 12px/1.2 var(--sans);white-space:nowrap;backdrop-filter:blur(3px);touch-action:manipulation;will-change:transform}
+.l3 small{font-weight:500;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:#cfc6ee}
+.l3-chakra,.l3-top{font-size:13.5px;padding:4px 11px}
+.l3-area{font-size:11px;color:#e9e2ff;background:rgba(10,6,28,.45)}
+.l3-leaf{font-size:10.5px;font-weight:500;background:rgba(10,6,28,.42);color:#e3ddf7}
+.l3-leaf small{font-size:9px;letter-spacing:.04em;text-transform:none}
+.l3.done{border-color:rgba(62,224,143,.6);color:#eafff2}
+.l3.rec{border-color:rgba(255,224,138,.7);box-shadow:0 0 12px rgba(255,224,138,.35)}
+.l3.now{border-color:#fff;background:rgba(40,24,80,.85);box-shadow:0 0 16px rgba(255,255,255,.35)}
+.l3:hover{background:rgba(40,24,80,.85)}
+#labels3d.far .l3 small,#labels3d.far .l3-area,#labels3d.far .l3-leaf{display:none!important}
+@media (max-width:900px),(max-height:520px){ .l3{font-size:10.5px;padding:2px 7px}.l3-chakra,.l3-top{font-size:11.5px}.l3 small{font-size:8.5px} }
