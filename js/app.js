@@ -100,138 +100,237 @@ function recommended() {
   addEventListener("resize", size); size(); frame();
 })();
 
-/* ================= Lebensbaum-Karte ================= */
-const CX = 1200;
-const leafShape = (len = 46, w = 15) => `M0 0 C${len * .25} ${-w} ${len * .75} ${-w} ${len} 0 C${len * .75} ${w} ${len * .25} ${w} 0 0Z`;
-function curve(x0, y0, x1, y1, bend = .5, vertical = false) {
-  if (vertical) { const my = y0 + (y1 - y0) * bend; return `M${x0} ${y0} C${x0} ${my} ${x1} ${my} ${x1} ${y1}`; }
-  const mx = x0 + (x1 - x0) * bend; return `M${x0} ${y0} C${mx} ${y0} ${x0 + (x1 - x0) * .6} ${y1} ${x1} ${y1}`;
+/* ================= Lebensbaum-Karte (organisch) ================= */
+const CX = 1300;
+const rad = d => d * Math.PI / 180;
+const pt = p => (Math.round(p[0] * 10) / 10) + " " + (Math.round(p[1] * 10) / 10);
+const uv = deg => [Math.cos(rad(deg)), Math.sin(rad(deg))];
+function rng(seed) {
+  let h = 2166136261 >>> 0; for (const ch of String(seed)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+  return () => { h = (h + 0x6D2B79F5) | 0; let t = h; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 }
-/* Ein „Teil“ des Baums: Geisterlinie + wachsende Lichtlinie */
-function part(d, key, cls, c, w) {
-  return `<path d="${d}" class="gh ${cls}" style="stroke-width:${Math.max(1.2, w * .35)}px"/>
-    <path d="${d}" class="gr ${cls}" data-p="${key}" pathLength="1" style="--c:${c};stroke-width:${w}px"/>`;
+const bez = (P, t) => { const u = 1 - t, a = u * u * u, b = 3 * u * u * t, c = 3 * u * t * t, d = t * t * t;
+  return [a * P[0][0] + b * P[1][0] + c * P[2][0] + d * P[3][0], a * P[0][1] + b * P[1][1] + c * P[2][1] + d * P[3][1]]; };
+const tang = (P, t) => { const a = bez(P, Math.max(0, t - .01)), b = bez(P, Math.min(1, t + .01)); return Math.atan2(b[1] - a[1], b[0] - a[0]); };
+const cpath = P => `M${pt(P[0])} C${pt(P[1])} ${pt(P[2])} ${pt(P[3])}`;
+function smooth(A) {
+  let d = `M${pt(A[0])}`;
+  for (let i = 1; i < A.length - 1; i++) d += ` Q${pt(A[i])} ${pt([(A[i][0] + A[i + 1][0]) / 2, (A[i][1] + A[i + 1][1]) / 2])}`;
+  return d + ` L${pt(A[A.length - 1])}`;
 }
+/* Konische, gefüllte Form entlang einer Bezier-Kurve (Stamm, Äste, Wurzeln) */
+function taper(P, w0, w1, n = 14) {
+  const L = [], Rr = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n, p = bez(P, t), a = tang(P, t), w = (w0 + (w1 - w0) * Math.pow(t, .8)) / 2;
+    L.push([p[0] - Math.sin(a) * w, p[1] + Math.cos(a) * w]); Rr.push([p[0] + Math.sin(a) * w, p[1] - Math.cos(a) * w]);
+  }
+  const e = bez(P, 1), a = tang(P, 1), tip = [e[0] + Math.cos(a) * (w1 * .6 + .5), e[1] + Math.sin(a) * (w1 * .6 + .5)];
+  return smooth(L) + ` Q${pt(tip)} ${pt(Rr[n])}` + smooth(Rr.slice().reverse()).replace(/^M/, " L") + "Z";
+}
+/* Rinden-Strähnen entlang eines Stammsegments */
+function bark(P, w0, w1, phase, amp) {
+  const A = [];
+  for (let i = 0; i <= 10; i++) {
+    const t = i / 10, p = bez(P, t), a = tang(P, t), w = (w0 + (w1 - w0) * Math.pow(t, .8)) / 2;
+    const o = Math.sin(phase + p[1] * .013) * amp * w;
+    A.push([p[0] - Math.sin(a) * o, p[1] + Math.cos(a) * o]);
+  }
+  return smooth(A);
+}
+/* Ein wachsendes Teil: Geisterform + Füllung + Lichtader */
+function part(key, cls, col, fill, lines = [], extra = "") {
+  return `<g class="pt ${cls}" data-p="${key}" style="--c:${col}"><path class="gh" d="${fill}"/><path class="gf" d="${fill}"/>${extra}${lines.map(l => `<path class="gl" d="${l}" pathLength="1"/>`).join("")}</g>`;
+}
+/* Blätter entlang eines Zweigs */
+function leafRow(P, n, r, s0, s1, t0 = .3) {
+  let out = "";
+  for (let i = 0; i < n; i++) {
+    const last = i === n - 1, t = last ? 1 : t0 + (.94 - t0) * i / Math.max(1, n - 2);
+    const p = bez(P, t), a = tang(P, t) * 180 / Math.PI, side = i % 2 ? 1 : -1;
+    const ang = last ? a + (r() - .5) * 16 : a + side * (34 + r() * 26);
+    const sc = (s0 + (s1 - s0) * Math.sin(Math.PI * Math.min(1, t * .9 + .1))) * (.85 + r() * .3);
+    out += `<g transform="translate(${pt(p)}) rotate(${Math.round(ang)}) scale(${sc.toFixed(2)})"><use href="#lf" class="lv${r() < .35 ? " l2" : ""}" style="--d:${(i * .08).toFixed(2)}s"/></g>`;
+  }
+  return out;
+}
+const trunkW = k => 44 + k * 16;
 function buildMap() {
-  const T = [...trunkIds(), "hub"], gap = 175, N = MAP.nodes = {};
-  /* Koordinaten (y nach unten, Hub bei 0) */
-  T.forEach((id, i) => N[id] = { x: CX + Math.sin(i * 1.3) * 18, y: (T.length - 1 - i) * gap, kind: "trunk" });
-  N.hub.x = CX;
-  const BP = {};
-  CHAKRA_ORDER.forEach((c, i) => {
-    if (c === "crown") { N.crown = { x: CX, y: -150 - 6 * 150 - 120, kind: "chakra" }; BP.crown = { x: CX, y: N.crown.y }; }
-    else { const side = i % 2 ? 1 : -1, by = -150 - i * 150; BP[c] = { x: CX, y: by, side }; N[c] = { x: CX + side * 470, y: by - 190, kind: "chakra", side }; }
-    const n = N[c], A = areasOf(c);
-    A.forEach((a, k) => {
-      const id = `a:${c}:${a.id}`;
-      let ax, ay;
-      if (c === "crown") { ax = CX + (k - (A.length - 1) / 2) * 330; ay = n.y - 210 - (k === 1 ? 80 : 0); }
-      else { ax = n.x + n.side * 270; ay = n.y + (k - (A.length - 1) / 2) * 125 - 40; }
-      N[id] = { x: ax, y: ay, kind: "area", c, a: a.id, side: n.side || 0 };
-      leavesOf(c, a).forEach((L, j, arr) => {
-        const lx = c === "crown" ? ax + (j - (arr.length - 1) / 2) * 70 : ax + n.side * 160;
-        const ly = c === "crown" ? ay - 125 : ay + (j - (arr.length - 1) / 2) * 52;
-        N[`L:${c}:${L.id}`] = { x: lx, y: ly, kind: "leaf", owner: c, eid: L.id, area: id, swapped: L.swapped, side: n.side || 0 };
+  const T = [...trunkIds(), "hub"], gap = 150, N = MAP.nodes = {}, K = T.length - 1;
+  T.forEach((id, i) => { const k = K - i; N[id] = { x: CX + (k ? Math.sin(k * 1.1) * 20 : 0), y: k * gap, kind: "trunk", k }; });
+  const H = N.hub;
+  const pol = (r, deg, o = H) => [o.x + r * Math.cos(rad(deg)), o.y + r * Math.sin(rad(deg))];
+  const ANG = { root: -172, solar: -145, throat: -118, crown: -90, third: -62, heart: -35, sacral: -8 };
+  const Rc = 470, Ra = 760, Rl = 985;
+  CHAKRA_ORDER.forEach(c => {
+    const a = ANG[c], [x, y] = pol(Rc, a);
+    N[c] = { x, y, kind: "chakra", ang: a, side: Math.sign(Math.round(Math.cos(rad(a)) * 3)) };
+    const A = areasOf(c), na = A.length, stp = 9.5;
+    A.forEach((ar, k) => {
+      const aa = a + (k - (na - 1) / 2) * stp, ra = Ra + (k % 2 ? 30 : 0), [ax, ay] = pol(ra, aa), id = `a:${c}:${ar.id}`;
+      N[id] = { x: ax, y: ay, kind: "area", c, a: ar.id, ang: aa, side: N[c].side };
+      const Ls = leavesOf(c, ar);
+      Ls.forEach((L, j) => {
+        const la = aa + (j - (Ls.length - 1) / 2) * 5.2, [lx, ly] = pol(Rl + (k % 2 ? 30 : 0) + (Ls.length > 1 && j % 2 ? 18 : 0), la);
+        N[`L:${c}:${L.id}`] = { x: lx, y: ly, kind: "leaf", owner: c, eid: L.id, area: id, ang: la, side: N[c].side, swapped: L.swapped };
       });
     });
   });
-  N.integration = { x: CX, y: N.crown.y - 470, kind: "top" };
-  /* Stamm-Blätter */
+  N.integration = { x: CX, y: H.y - 1330, kind: "top" };
   trunkIds().forEach(id => {
-    const st = ST[id], n = N[id], Ls = trunkLeaves(st);
+    const n = N[id], Ls = trunkLeaves(ST[id]), w = trunkW(n.k);
     Ls.forEach((L, j) => {
-      const side = j % 2 ? 1 : -1, row = Math.floor(j / 2), rows = Math.ceil(Ls.length / 2);
-      N[`L:${id}:${L.id}`] = { x: n.x + side * 165, y: n.y - 30 + (row - (rows - 1) / 2) * 62, kind: "leaf", owner: id, eid: L.id, tag: L.tag, side, swapped: L.swapped };
+      const side = j % 2 ? 1 : -1, row = Math.floor(j / 2), ang = side < 0 ? -158 + row * 16 : -22 - row * 16, r = w / 2 + 120 + row * 40;
+      const [lx, ly] = pol(r, ang, n);
+      N[`L:${id}:${L.id}`] = { x: lx, y: ly, kind: "leaf", owner: id, eid: L.id, tag: L.tag, side, ang, base: [n.x + side * (w / 2 - 6), n.y - 6], swapped: L.swapped };
     });
   });
-  /* Verschieben, sodass alles positiv ist */
-  const minY = Math.min(...Object.values(N).map(n => n.y)) - 260, maxY = Math.max(...Object.values(N).map(n => n.y)) + 330;
-  Object.values(N).forEach(n => n.y -= minY);
-  MAP.H = maxY - minY;
-  Object.values(BP).forEach(b => b.y -= minY);
+  /* Rahmenkreis, alles verschieben */
+  const ck = N.checkin, top = N.integration.y - 120, bot = ck.y + 300;
+  let cy = (top + bot) / 2, cr = (bot - top) / 2;
+  Object.values(N).forEach(n => { cr = Math.max(cr, Math.hypot(n.x - CX, n.y - cy) + (n.kind === "leaf" ? 190 : 80)); });
+  const off = [cr + 80 - CX, cr + 80 - cy];
+  Object.values(N).forEach(n => { n.x += off[0]; n.y += off[1]; if (n.base) n.base = [n.base[0] + off[0], n.base[1] + off[1]]; });
+  MAP.W = MAP.H = Math.round(2 * cr + 160);
+  const C0 = [cr + 80, cr + 80]; MAP.circle = { x: C0[0], y: C0[1], r: cr };
+  const tx = N.hub.x;
 
   let g = `<defs>
-    <linearGradient id="trunkGrad" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#ffb070"/><stop offset=".5" stop-color="#ffe6a8"/><stop offset="1" stop-color="#fff6d8"/></linearGradient>
-    <filter id="mglow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-    <filter id="uglow" filterUnits="userSpaceOnUse" x="${CX - 160}" y="-3000" width="320" height="12000"><feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <linearGradient id="trunkG" gradientUnits="userSpaceOnUse" x1="${tx - 85}" y1="0" x2="${tx + 85}" y2="0"><stop offset="0" stop-color="#8a4f2a"/><stop offset=".3" stop-color="#d9965a"/><stop offset=".5" stop-color="#ffd9a0"/><stop offset=".72" stop-color="#c98549"/><stop offset="1" stop-color="#6e3a1e"/></linearGradient>
+    <linearGradient id="rootG" gradientUnits="userSpaceOnUse" x1="0" y1="${ck.y}" x2="0" y2="${C0[1] + cr}"><stop offset="0" stop-color="#d08a50"/><stop offset=".6" stop-color="#ff8a4a"/><stop offset="1" stop-color="#ff5a3a" stop-opacity=".5"/></linearGradient>
+    <linearGradient id="leafG" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#1f9d5c"/><stop offset=".55" stop-color="#3ee08f"/><stop offset="1" stop-color="#c6ffd9"/></linearGradient>
+    <linearGradient id="leafG2" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#2fb36a"/><stop offset=".6" stop-color="#7cf0a8"/><stop offset="1" stop-color="#eaffc8"/></linearGradient>
+    <radialGradient id="lglowG"><stop offset="0" stop-color="#3ee08f" stop-opacity=".45"/><stop offset="1" stop-color="#3ee08f" stop-opacity="0"/></radialGradient>
+    <path id="lf" d="M0 0 C7 -9 19 -12 31 -6 C37 -3 41 -1 45 0 C41 1 37 3 31 6 C19 12 7 9 0 0Z"/>
+    <filter id="mglow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
     <filter id="mblur" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="16"/></filter>
-    <radialGradient id="seedG"><stop offset="0" stop-color="#fff3d6"/><stop offset=".5" stop-color="#ff9a5a" stop-opacity=".5"/><stop offset="1" stop-color="#ff5a3a" stop-opacity="0"/></radialGradient>
     <radialGradient id="sunG"><stop offset="0" stop-color="#fffbe8"/><stop offset=".35" stop-color="#ffe08a" stop-opacity=".8"/><stop offset="1" stop-color="#ffb347" stop-opacity="0"/></radialGradient>
+    <radialGradient id="canG"><stop offset="0" stop-color="#fff3c8" stop-opacity=".45"/><stop offset=".45" stop-color="#3ee08f" stop-opacity=".22"/><stop offset=".78" stop-color="#c77dff" stop-opacity=".1"/><stop offset="1" stop-color="#6a6bff" stop-opacity="0"/></radialGradient>
+    <radialGradient id="earthG"><stop offset="0" stop-color="#ff8a4a" stop-opacity=".35"/><stop offset="1" stop-color="#ff5a3a" stop-opacity="0"/></radialGradient>
+    ${CHAKRA_ORDER.map(c => { const n = N[c]; return `<linearGradient id="bg_${c}" gradientUnits="userSpaceOnUse" x1="${pt([tx, N.hub.y]).replace(" ", '" y1="')}" x2="${pt([n.x, n.y]).replace(" ", '" y2="')}"><stop offset="0" stop-color="#ffd9a0"/><stop offset=".55" stop-color="${CHAKRAS[c].color}" stop-opacity=".9"/><stop offset="1" stop-color="${CHAKRAS[c].color}"/></linearGradient>`; }).join("")}
   </defs>`;
-  const ck = N.checkin;
-  const midY = (N.hub.y + N.crown.y) / 2;
-  g += `<radialGradient id="canG"><stop offset="0" stop-color="#fff3c8" stop-opacity=".5"/><stop offset=".45" stop-color="#3ee08f" stop-opacity=".25"/><stop offset=".75" stop-color="#c77dff" stop-opacity=".15"/><stop offset="1" stop-color="#6a6bff" stop-opacity="0"/></radialGradient><ellipse id="canopy" cx="${CX}" cy="${midY - 80}" rx="1150" ry="${(N.hub.y - N.crown.y) / 2 + 420}" fill="url(#canG)" opacity="0"/>`;
-  /* Erd-Glühen & Wurzeln */
-  g += `<ellipse cx="${ck.x}" cy="${ck.y + 120}" rx="420" ry="90" fill="#ff7a3a" opacity=".07" filter="url(#mblur)" class="earth"/>`;
-  [[-260, 150], [-170, 210], [-80, 240], [70, 235], [165, 205], [255, 150], [-330, 90], [330, 95]].forEach(([dx, dy], i) => {
-    g += part(`M${ck.x} ${ck.y + 20} C${ck.x + dx * .2} ${ck.y + dy * .6} ${ck.x + dx * .7} ${ck.y + dy * .7} ${ck.x + dx} ${ck.y + dy}`, "root" + i, "root-line", "#ffb070", 5 - Math.abs(dx) / 110);
-  });
-  /* Stamm */
-  for (let i = 0; i < T.length - 1; i++) {
-    const a = N[T[i]], b = N[T[i + 1]];
-    g += part(curve(a.x, a.y, b.x, b.y, .5, true), "t:" + T[i], "trunk", "url(#trunkGrad)", 22 - i * 1.4);
+  /* Rahmen, Kronen- und Erdglühen */
+  g += `<circle id="frame" class="frame" cx="${C0[0]}" cy="${C0[1]}" r="${cr}"/><circle class="frame2" cx="${C0[0]}" cy="${C0[1]}" r="${cr - 18}"/>`;
+  g += `<ellipse id="canopy" cx="${tx}" cy="${N.hub.y - 560}" rx="${cr * .86}" ry="${cr * .62}" fill="url(#canG)" opacity="0"/>`;
+  g += `<ellipse cx="${ck.x}" cy="${ck.y + 170}" rx="520" ry="160" fill="url(#earthG)" class="earth"/>`;
+  /* Wurzeln bis zum Rahmen */
+  const rr = rng("roots"), baseW = trunkW(ck.k) + 20;
+  const sMin = Math.min(.97, (ck.y + 70 - C0[1]) / cr), phMin = Math.asin(sMin) * 180 / Math.PI, nR = 9;
+  let rootFill = "", rootLines = [];
+  for (let i = 0; i < nR; i++) {
+    const f = i / (nR - 1), ph = (180 - phMin - 4) - f * (180 - 2 * phMin - 8);
+    const E = [C0[0] + cr * Math.cos(rad(ph)), C0[1] + cr * Math.sin(rad(ph))], ru = uv(ph);
+    const B0 = [ck.x + (f - .5) * baseW * .8, ck.y + 8], dx = E[0] - B0[0], dy = E[1] - B0[1];
+    const P = [B0, [B0[0] + dx * .12, B0[1] + Math.max(60, dy * .55)], [E[0] - ru[0] * 140 - dx * .05, E[1] - ru[1] * 140], E];
+    const w = 30 - Math.abs(f - .5) * 18;
+    rootFill += taper(P, w, 2.5, 16); rootLines.push(cpath(P));
+    const t = .45 + rr() * .15, b = bez(P, t), ph2 = ph + (i % 2 ? 7 : -7), E2 = [C0[0] + cr * Math.cos(rad(ph2)), C0[1] + cr * Math.sin(rad(ph2))], r2 = uv(ph2);
+    const P2 = [b, [b[0] + (E2[0] - b[0]) * .3, b[1] + (E2[1] - b[1]) * .5], [E2[0] - r2[0] * 70, E2[1] - r2[1] * 70], E2];
+    rootFill += taper(P2, w * .35, 1.2, 10);
   }
-  /* oberer Stamm (Mitteltrieb) */
-  const ups = [N.hub, ...CHAKRA_ORDER.slice(0, 6).map(c => BP[c]), N.crown];
-  for (let i = 0; i < ups.length - 1; i++) g += part(curve(ups[i].x, ups[i].y, ups[i + 1].x, ups[i + 1].y, .5, true), "u:" + i, "trunk upper", "#ffe6a8", 9 - i * .8);
-  g += part(curve(N.crown.x, N.crown.y, N.integration.x, N.integration.y, .5, true), "top", "trunk upper", "#ffe08a", 4);
-  /* Äste */
+  g += part("root", "root", "url(#rootG)", rootFill, rootLines);
+  /* Stamm */
+  for (let i = 0; i < K; i++) {
+    const a = N[T[i]], b = N[T[i + 1]], w0 = trunkW(a.k) + (i === 0 ? 16 : 0), w1 = trunkW(b.k);
+    const P = [[a.x, a.y + (i === 0 ? 14 : 2)], [a.x, a.y - gap * .45], [b.x, b.y + gap * .45], [b.x, b.y - 2]];
+    const bk = [0, 1.7, 3.4, 5.1].map((ph, j) => `<path class="bk${j % 2 ? " hl" : ""}" d="${bark(P, w0, w1, ph + i * .6, .78)}"/>`).join("");
+    g += part("t:" + T[i], "trunk", "url(#trunkG)", taper(P, w0, w1, 10), [cpath(P)], bk);
+  }
+  /* Hauptäste */
+  const BR = {};
   CHAKRA_ORDER.forEach(c => {
-    const col = CHAKRAS[c].color, n = N[c];
-    if (c !== "crown") g += part(`M${BP[c].x} ${BP[c].y} C${BP[c].x + n.side * 130} ${BP[c].y - 30} ${n.x - n.side * 230} ${n.y + 80} ${n.x} ${n.y}`, "b:" + c, "branch", col, 10);
-    areasOf(c).forEach(a => {
-      const an = N[`a:${c}:${a.id}`];
-      g += part(c === "crown" ? curve(n.x, n.y, an.x, an.y, .55, true) : curve(n.x, n.y, an.x, an.y, .45), "ar:" + c + ":" + a.id, "twig", col, 5);
-      leavesOf(c, a).forEach(L => { const ln = N[`L:${c}:${L.id}`]; g += part(c === "crown" ? curve(an.x, an.y, ln.x, ln.y + 22, .5, true) : curve(an.x, an.y, ln.x - n.side * 2, ln.y, .5), "lf:" + c + ":" + L.id, "stem", col, 2.5); });
+    const n = N[c], u = uv(n.ang), h = N.hub;
+    const P0 = [h.x + u[0] * 14, h.y - 8], P3 = [n.x, n.y];
+    const P = [P0, [h.x + u[0] * Rc * .2, h.y - Rc * .42], [P3[0] - u[0] * Rc * .34, P3[1] - u[1] * Rc * .34 + Rc * .12], P3];
+    BR[c] = P;
+    const r = rng("sp" + c);
+    let sp = "";
+    [.42, .7].forEach((t, j) => {
+      const b = bez(P, t), a = tang(P, t) * 180 / Math.PI, cands = [a - 55, a + 55].sort((p, q) => Math.sin(rad(p)) - Math.sin(rad(q)));
+      const dir = cands[j % 2 ? 1 : 0] , len = 80 + r() * 25, du = uv(dir), E = [b[0] + du[0] * len, b[1] + du[1] * len];
+      const Q = [b, [b[0] + du[0] * len * .35, b[1] + du[1] * len * .35 - 10], [E[0] - du[0] * len * .3, E[1] - du[1] * len * .3], E];
+      sp += `<path class="tw" d="${taper(Q, 5, 1, 8)}"/>` + leafRow(Q, 6, r, .7, 1, .22);
     });
+    g += part("b:" + c, "branch", `url(#bg_${c})`, taper(P, 40, 16), [cpath(P)]);
+    g += `<g class="sprig" data-p="sp:${c}">${sp}</g>`;
   });
-  trunkIds().forEach(id => { const n = N[id]; Object.entries(N).filter(([k, v]) => v.kind === "leaf" && v.owner === id).forEach(([k, v]) => {
-    g += part(`M${n.x + v.side * 26} ${n.y - 6} C${n.x + v.side * 80} ${n.y - 20} ${v.x - v.side * 60} ${v.y} ${v.x} ${v.y}`, "lf:" + id + ":" + v.eid, "stem", ST[id].color, 2.5); }); });
-  /* Blätter */
-  Object.entries(N).filter(([, v]) => v.kind === "leaf").forEach(([k, v]) => {
-    const ex = EXERCISES[v.eid], col = isChakra(v.owner) ? CHAKRAS[v.owner].color : ST[v.owner].color;
-    const up = v.owner === "crown", rot = up ? -90 : v.side < 0 ? 180 : 0;
-    const t = ex.title.length > 24 ? ex.title.split(/ [–&(]/)[0] : ex.title;
-    const tx = up ? 0 : v.side * 58, ty = up ? -62 : 0, anchor = up ? "middle" : v.side < 0 ? "end" : "start";
-    g += `<g class="m-leaf" data-node="${k}" data-key="${v.owner}:${v.eid}" style="--c:${col}" transform="translate(${v.x} ${v.y})" tabindex="0" role="button" aria-label="Übung: ${esc(ex.title)}">
-      <path d="${leafShape()}" transform="rotate(${rot})" class="leaf"/>
-      <path d="M0 0 L40 0" transform="rotate(${rot})" class="vein"/>
-      <text x="${tx}" y="${ty - 4}" text-anchor="${anchor}" class="lt">${esc(t)}</text>
-      <text x="${tx}" y="${ty + 13}" text-anchor="${anchor}" class="ls">${ex.minutes} min${v.tag === "over" ? " · bei Unruhe" : v.tag === "under" ? " · bei Erschöpfung" : ""}</text></g>`;
-  });
-  /* Unteräste (Bereiche) */
+  /* Unteräste */
   CHAKRA_ORDER.forEach(c => areasOf(c).forEach(a => {
-    const id = `a:${c}:${a.id}`, n = N[id], col = CHAKRAS[c].color;
-    const up = c === "crown";
-    g += `<g class="m-area" data-node="${id}" style="--c:${col}" transform="translate(${n.x} ${n.y})" tabindex="0" role="button" aria-label="Unterast ${esc(a.title)}">
-      <circle r="13" class="ac"/><text y="${up ? 34 : -22}" class="at">${esc(a.title)}</text></g>`;
+    const n = N[c], an = N[`a:${c}:${a.id}`], u = uv(n.ang), ua = uv(an.ang), d = Math.hypot(an.x - n.x, an.y - n.y);
+    const P = [[n.x, n.y], [n.x + u[0] * d * .45, n.y + u[1] * d * .45 - 20], [an.x - ua[0] * d * .3, an.y - ua[1] * d * .3], [an.x, an.y]];
+    const r = rng("as" + c + a.id), t = .5, b = bez(P, t), ta = tang(P, t) * 180 / Math.PI, dir = ta + (r() < .5 ? -50 : 50), du = uv(dir), len = 75;
+    const E = [b[0] + du[0] * len, b[1] + du[1] * len], Q = [b, [b[0] + du[0] * 25, b[1] + du[1] * 25 - 8], [E[0] - du[0] * 22, E[1] - du[1] * 22], E];
+    g += part(`ar:${c}:${a.id}`, "twig", CHAKRAS[c].color, taper(P, 15, 6, 10), [cpath(P)], `<path class="tw" d="${taper(Q, 4, 1, 6)}"/>` + leafRow(Q, 5, r, .6, .85, .25));
+  }));
+  /* Blätter-Büschel: jede Übung = mehrere Blätter */
+  Object.entries(N).filter(([, v]) => v.kind === "leaf").forEach(([k, v]) => {
+    const ex = EXERCISES[v.eid], col = isChakra(v.owner) ? CHAKRAS[v.owner].color : ST[v.owner].color, r = rng(k), ul = uv(v.ang);
+    let P;
+    if (v.area) { const an = N[v.area], ua = uv(an.ang); P = [[an.x, an.y], [an.x + ua[0] * 60, an.y + ua[1] * 60 - 10], [v.x - ul[0] * 70, v.y - ul[1] * 70], [v.x, v.y]]; }
+    else { const b = v.base; P = [b, [b[0] + v.side * 50, b[1] - 6], [v.x - ul[0] * 55, v.y - ul[1] * 55], [v.x, v.y]]; }
+    const nL = 6 + Math.floor(r() * 4), hc = bez(P, .7);
+    const rot = Math.cos(rad(v.ang)) < -.05, la = rot ? v.ang + 180 : v.ang, lp = [v.x + ul[0] * 26, v.y + ul[1] * 26];
+    const t = ex.title.length > 26 ? ex.title.split(/ [–&(]/)[0] : ex.title;
+    g += `<g class="m-leaf" data-node="${k}" data-key="${v.owner}:${v.eid}" style="--c:${col}" tabindex="0" role="button" aria-label="Übung: ${esc(ex.title)}">
+      <circle class="lglow" cx="${pt(hc).replace(" ", '" cy="')}" r="80" fill="url(#lglowG)"/>
+      <path class="tw" d="${taper(P, 5, 1.2, 8)}"/>${leafRow(P, nL, r, .8, 1.2)}
+      <circle class="lhit" cx="${pt(hc).replace(" ", '" cy="')}" r="58"/>
+      <g class="ltx" transform="translate(${pt(lp)}) rotate(${Math.round(la)})"><text class="lt" text-anchor="${rot ? "end" : "start"}" y="-2">${esc(t)}</text>
+      <text class="ls" text-anchor="${rot ? "end" : "start"}" y="14">${ex.minutes} min${v.tag === "over" ? " · bei Unruhe" : v.tag === "under" ? " · bei Erschöpfung" : ""}</text></g></g>`;
+  });
+  /* Lichtstrahl zur Integration */
+  const cr0 = N.crown, ti = N.integration;
+  g += `<path class="beam" d="M${pt([cr0.x, cr0.y - 40])} L${pt([ti.x, ti.y + 50])}"/><path class="beam on-beam" data-p="top" d="M${pt([cr0.x, cr0.y - 40])} L${pt([ti.x, ti.y + 50])}" pathLength="1"/>`;
+  /* Bereichs-Knoten */
+  CHAKRA_ORDER.forEach(c => areasOf(c).forEach(a => {
+    const id = `a:${c}:${a.id}`, n = N[id];
+    g += `<g class="m-area" data-node="${id}" style="--c:${CHAKRAS[c].color}" transform="translate(${pt([n.x, n.y])})" tabindex="0" role="button" aria-label="Unterast ${esc(a.title)}">
+      <circle r="30" class="ahit"/><circle r="12" class="ac"/><text y="-21" class="at">${esc(a.title)}</text></g>`;
   }));
   /* Knoten */
-  const nodeSvg = (id, n, col, R, ico, lbl, sub, extra = "") => `<g class="m-node ${n.kind}" data-node="${id}" style="--c:${col}" transform="translate(${n.x} ${n.y})" tabindex="0" role="button" aria-label="${esc(lbl)}">
-      <circle r="${R * 2.3}" fill="${col}" opacity=".16" filter="url(#mblur)" class="halo"/>${extra}
+  const nodeSvg = (id, n, col, R, ico, lbl, sub, extra = "") => `<g class="m-node ${n.kind}" data-node="${id}" style="--c:${col}" transform="translate(${pt([n.x, n.y])})" tabindex="0" role="button" aria-label="${esc(lbl)}">
+      <circle r="${R * 2.1}" fill="${col}" opacity=".16" filter="url(#mblur)" class="halo"/>${extra}
       <circle r="${R}" class="core" stroke="${col}"/>
       <circle r="${R - 7}" fill="${col}" class="fillc"/>
-      <text class="ico" style="font-size:${ico.length > 2 ? 15 : 22}px">${esc(ico)}</text>
-      <text class="lbl" y="${R + 25}">${esc(lbl)}</text>${sub ? `<text class="sub" y="${R + 42}">${esc(sub)}</text>` : ""}
+      <text class="ico" style="font-size:${ico.length > 2 ? 14 : 21}px">${esc(ico)}</text>
+      <text class="lbl" y="${R + 24}">${esc(lbl)}</text>${sub ? `<text class="sub" y="${R + 40}">${esc(sub)}</text>` : ""}
       <g class="stmark"></g></g>`;
-  trunkIds().forEach(id => { const st = ST[id]; g += nodeSvg(id, N[id], st.color, id === "checkin" ? 34 : 38, st.icon, id === "checkin" ? "Check-in" : st.title, id === "checkin" ? "Samen" : "Stamm"); });
-  g += nodeSvg("hub", N.hub, "#ffe08a", 46, "✺", "Verzweigung", "Baumkrone", `<circle r="78" class="hub-ring"/>`);
+  trunkIds().forEach(id => { const st = ST[id]; g += nodeSvg(id, N[id], st.color, 32, st.icon, id === "checkin" ? "Check-in" : st.title, id === "checkin" ? "Samen" : "Stamm"); });
+  g += nodeSvg("hub", N.hub, "#ffe08a", 44, "✺", "Verzweigung", "Baumkrone", `<circle r="74" class="hub-ring"/>`);
   CHAKRA_ORDER.forEach(c => {
     const ch = CHAKRAS[c];
     const petals = Array.from({ length: 8 }, (_, i) => `<ellipse rx="13" ry="30" cy="-46" transform="rotate(${i * 45})" class="petal"/>`).join("");
-    g += nodeSvg(c, N[c], ch.color, 40, ch.mantra, ch.name, ch.skt, `<g class="blossom">${petals}</g><circle r="60" class="rec-ring"/>`);
+    g += nodeSvg(c, N[c], ch.color, 38, ch.mantra, ch.name, ch.skt, `<g class="blossom">${petals}</g><circle r="60" class="rec-ring"/>`);
   });
-  g += `<circle cx="${N.integration.x}" cy="${N.integration.y}" r="260" fill="url(#sunG)" class="sun" opacity=".18"/>`;
+  g += `<circle cx="${pt([ti.x, ti.y]).replace(" ", '" cy="')}" r="280" fill="url(#sunG)" class="sun" opacity=".18"/>`;
   g += nodeSvg("integration", N.integration, "#fde68a", 50, "❂", "Integration", "Wipfel · Mitte");
   $("#cam").innerHTML = g;
   $$("#cam [data-node]").forEach(el => {
     el.addEventListener("click", e => { if (MAP.dragged) return; e.stopPropagation(); clickNode(el.dataset.node); });
     el.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); clickNode(el.dataset.node); } });
+    el.addEventListener("pointerenter", e => showTip(el.dataset.node, e));
+    el.addEventListener("pointermove", e => moveTip(e));
+    el.addEventListener("pointerleave", hideTip);
   });
   refreshMap(true);
+  applyCam();
 }
+/* Tooltip über der Karte */
+function tipEl() { let t = $("#mapTip"); if (!t) { t = document.createElement("div"); t.id = "mapTip"; t.setAttribute("role", "tooltip"); document.body.appendChild(t); } return t; }
+function showTip(id, e) {
+  if (e.pointerType === "touch") return;
+  const n = MAP.nodes[id]; if (!n) return;
+  let h;
+  if (n.kind === "leaf") { const ex = EXERCISES[n.eid], s = setupOf(n.eid); h = `<b>${esc(ex.title)}</b><span>${ex.minutes} min · ${POS[s.pos].icon} ${POS[s.pos].label}${S.leaves[n.owner + ":" + n.eid] ? " · ✓ geschafft" : ""}</span>`; }
+  else if (n.kind === "area") { const a = areaById(n.c, n.a); h = `<b>${esc(a.title)}</b><span>${esc(CHAKRAS[n.c].name)} · ${leavesOf(n.c, a).length} Übung${leavesOf(n.c, a).length > 1 ? "en" : ""}</span>`; }
+  else h = `<b>${esc(id === "checkin" ? "Check-in" : nodeTitle(id))}</b>${isChakra(id) ? `<span>${esc(CHAKRAS[id].skt)}</span>` : ""}`;
+  const t = tipEl(); t.innerHTML = h; t.classList.add("on"); moveTip(e);
+}
+function moveTip(e) { const t = $("#mapTip"); if (!t || !t.classList.contains("on")) return; t.style.transform = `translate(${Math.min(innerWidth - t.offsetWidth - 8, e.clientX + 14)}px, ${Math.max(8, e.clientY - t.offsetHeight - 12)}px)`; }
+function hideTip() { const t = $("#mapTip"); if (t) t.classList.remove("on"); }
 function clickNode(id) {
   const n = MAP.nodes[id]; if (!n) return;
+  hideTip();
   if (!S.mode) { Sound.init(); S.mode = "solo"; S.started = Date.now(); }
   if (n.kind === "leaf") {
     if (isChakra(n.owner)) return go(n.area);
@@ -243,21 +342,19 @@ function refreshMap(initial) {
   const on = (key, v) => { const el = $(`[data-p="${CSS.escape(key)}"]`); if (el) el.classList.toggle("on", !!v); };
   const T = [...trunkIds(), "hub"];
   const reached = id => !!(S.visited[id] || statusOf(id));
-  T.slice(0, -1).forEach((id, i) => on("t:" + id, statusOf(id)));
-  for (let i = 0; i < 8; i++) on("root" + i, S.started && S.phase !== "welcome" || statusOf("checkin"));
+  T.slice(0, -1).forEach(id => on("t:" + id, statusOf(id)));
+  on("root", S.started && S.phase !== "welcome" || statusOf("checkin"));
   const hubOn = !!S.scan;
-  for (let i = 0; i < 7; i++) on("u:" + i, hubOn);
   on("top", S.finished);
   CHAKRA_ORDER.forEach(c => {
-    on("b:" + c, reached(c));
+    on("b:" + c, reached(c)); on("sp:" + c, reached(c) && (statusOf(c) || areasOf(c).some(a => leavesOf(c, a).some(L => leafDone(c, L.id)))));
     areasOf(c).forEach(a => {
       const Ls = leavesOf(c, a);
       on("ar:" + c + ":" + a.id, Ls.some(L => leafDone(c, L.id)) || S.node === `a:${c}:${a.id}`);
-      Ls.forEach(L => on("lf:" + c + ":" + L.id, leafDone(c, L.id)));
     });
   });
-  trunkIds().forEach(id => trunkLeaves(ST[id]).forEach(L => on("lf:" + id + ":" + L.id, leafDone(id, L.id))));
   $$(".m-leaf").forEach(el => el.classList.toggle("done", !!S.leaves[el.dataset.key]));
+  const fr = $("#frame"); if (fr) fr.classList.toggle("on", !!S.finished);
   const rec = S.scan ? recommended().all : [];
   $$(".m-node, .m-area").forEach(el => {
     const id = el.dataset.node, st = statusOf(id);
@@ -268,10 +365,10 @@ function refreshMap(initial) {
     el.classList.toggle("rec", rec.includes(id) && !st);
     if (el.classList.contains("m-area")) { const [, c, a] = id.split(":"); el.classList.toggle("reached", leavesOf(c, areaById(c, a)).some(L => leafDone(c, L.id))); }
     const mk = el.querySelector(".stmark");
-    if (mk) mk.innerHTML = st ? `<circle cx="32" cy="-32" r="12" fill="${st === "moving" ? "#ffb347" : st === "skipped" ? "#777" : "#3ee08f"}"/><text x="32" y="-32" class="mk">${st === "moving" ? "↻" : st === "skipped" ? "–" : "✓"}</text>` : "";
+    if (mk) mk.innerHTML = st ? `<circle cx="30" cy="-30" r="12" fill="${st === "moving" ? "#ffb347" : st === "skipped" ? "#777" : "#3ee08f"}"/><text x="30" y="-30" class="mk">${st === "moving" ? "↻" : st === "skipped" ? "–" : "✓"}</text>` : "";
   });
   $$(".m-leaf.cur").forEach(x => x.classList.remove("cur"));
-  const cnp = $("#canopy"); if (cnp) cnp.setAttribute("opacity", (S.scan ? .06 : 0) + CHAKRA_ORDER.filter(c => ["free", "resolved"].includes(statusOf(c))).length * .05 + Object.keys(S.leaves).length * .006);
+  const cnp = $("#canopy"); if (cnp) cnp.setAttribute("opacity", Math.min(1, (S.scan ? .08 : 0) + CHAKRA_ORDER.filter(c => ["free", "resolved"].includes(statusOf(c))).length * .06 + Object.keys(S.leaves).length * .012));
   /* Fortschritt in der Kopfzeile */
   const tDone = trunkIds().filter(id => statusOf(id)).length, tAll = trunkIds().length;
   const leavesAll = Object.keys(S.leaves).length;
@@ -283,9 +380,14 @@ function refreshMap(initial) {
 /* Kamera */
 function viewCenter() {
   const mob = innerWidth <= 900;
-  if (mob) { const ph = $("#panel").offsetHeight; return [innerWidth / 2, Math.max(120, (innerHeight - ph) / 2 + 20)]; }
+  if (mob) { const pt_ = mobTop(); return [innerWidth / 2, 116 + (pt_ - 116) / 2]; }
   return [(innerWidth - $("#panel").offsetWidth - 36) / 2, innerHeight / 2 + 20];
 }
+function viewSize() {
+  if (innerWidth <= 900) return [innerWidth - 16, Math.max(120, mobTop() - 126)];
+  return [innerWidth - $("#panel").offsetWidth - 70, innerHeight - 110];
+}
+function mobTop() { const r = $("#panel").getBoundingClientRect(); return Math.max(260, Math.min(innerHeight, r.top || innerHeight)); }
 function camTo(x, y, s, dur = 1400) {
   const [cx, cy] = viewCenter();
   const to = { s, x: cx - x * s, y: cy - y * s };
@@ -302,23 +404,37 @@ function camTo(x, y, s, dur = 1400) {
     requestAnimationFrame(step);
   });
 }
-function applyCam() { $("#cam").setAttribute("transform", `translate(${cam.x} ${cam.y}) scale(${cam.s})`); }
-function baseScale() { return innerWidth <= 520 ? .5 : innerWidth <= 900 ? .6 : Math.min(1, innerHeight / 950); }
+let camZo = null;
+function applyCam() {
+  $("#cam").setAttribute("transform", `translate(${cam.x} ${cam.y}) scale(${cam.s})`);
+  const zo = cam.s < .5, k = zo ? Math.min(3.2, Math.round(.62 / cam.s * 10) / 10) : 1, key = zo + ":" + k;
+  if (key !== camZo) { camZo = key; const m = $("#map"); m.classList.toggle("zo", zo); m.style.setProperty("--k", k); }
+}
+function baseScale() { return innerWidth <= 520 ? .55 : innerWidth <= 900 ? .65 : Math.min(1, innerHeight / 950); }
+function fitBox(x0, y0, x1, y1, dur, maxS = 1.15) {
+  const [vw, vh] = viewSize();
+  return camTo((x0 + x1) / 2, (y0 + y1) / 2, Math.min(maxS, vw / (x1 - x0), vh / (y1 - y0)), dur);
+}
+function fitNodes(ids, pad, dur, maxS) {
+  const P = [];
+  ids.map(i => MAP.nodes[i]).filter(Boolean).forEach(n => { P.push(n); if (n.kind === "leaf") { const u = uv(n.ang); P.push({ x: n.x + u[0] * 175, y: n.y + u[1] * 175 }); } });
+  return fitBox(Math.min(...P.map(p => p.x)) - pad, Math.min(...P.map(p => p.y)) - pad, Math.max(...P.map(p => p.x)) + pad, Math.max(...P.map(p => p.y)) + pad, dur, maxS);
+}
 function focusNode(dur = 1300) {
   const id = S.node; if (!id) return;
-  let n = MAP.nodes[id.startsWith("x:") ? "L:" + id.slice(2) : id]; if (!n) return;
-  let x = n.x, y = n.y, s = baseScale();
-  if (n.kind === "chakra" && n.side) x += n.side * 190;
-  if (n.kind === "area" && n.side) x += n.side * 60;
-  if (id === "hub") { const top = MAP.nodes.crown.y - 200, [cx] = viewCenter(); y = (n.y + top) / 2; s = Math.min((innerHeight - 150) / (n.y - top + 120), (cx * 2 - 40) / 1900); }
-  if (n.kind === "trunk") s *= 1.05;
-  return camTo(x, y, s, dur);
+  const key = id.startsWith("x:") ? "L:" + id.slice(2) : id, n = MAP.nodes[key]; if (!n) return;
+  const leafIds = pred => Object.keys(MAP.nodes).filter(k => MAP.nodes[k].kind === "leaf" && pred(MAP.nodes[k]));
+  const mob = innerWidth <= 900;
+  if (id === "hub") return fitNodes(Object.keys(MAP.nodes).filter(k => !["trunk"].includes(MAP.nodes[k].kind) || k === "hub"), mob ? 60 : 120, dur, 1);
+  if (n.kind === "chakra") return fitNodes([id, ...areasOf(id).map(a => `a:${id}:${a.id}`), ...leafIds(l => l.owner === id)], mob ? 70 : 150, dur, 1.1);
+  if (n.kind === "area") return fitNodes([n.c, id, ...leafIds(l => l.area === id)], mob ? 80 : 160, dur, 1.25);
+  if (n.kind === "leaf") return fitNodes([key, n.area || n.owner], mob ? 90 : 170, dur, 1.3);
+  if (n.kind === "top") return fitNodes(["integration", "crown"], 220, dur, 1);
+  /* Stamm-Station inkl. ihrer Blätter */
+  return fitNodes([id, ...leafIds(l => l.owner === id)], mob ? 110 : 190, dur, baseScale() * 1.15);
 }
 let overview = false;
-function showWholeTree(dur = 1200) {
-  const [cx] = viewCenter(); const s = Math.min((innerHeight - 110) / MAP.H, (cx * 2 - 30) / MAP.W);
-  return camTo(MAP.W / 2, MAP.H / 2, s, dur);
-}
+function showWholeTree(dur = 1200) { return fitBox(0, 0, MAP.W, MAP.H, dur, 1); }
 function toggleOverview() { overview = !overview; if (overview) showWholeTree(); else focusNode(1000); }
 /* Ziehen / Zoomen der Karte */
 (function panzoom() {
@@ -333,7 +449,7 @@ function toggleOverview() { overview = !overview; if (overview) showWholeTree();
 
 /* ================= Navigation ================= */
 function defaultPhase(id) {
-  if (id === "checkin") return statusOf("checkin") ? "checkin3" : "checkin1";
+  if (id === "checkin") return statusOf("checkin") ? "checkin3" : S.roomDone ? "checkin1" : "room";
   if (id === "hub") return S.scan ? "hub" : "scan";
   if (id.startsWith("a:")) return "area";
   if (id.startsWith("x:")) return "leaf";
@@ -420,6 +536,7 @@ function renderWelcome() {
     ${S.started && S.mode && S.node ? `<button class="btn ghost block" id="resume">↻ Begonnene Reise fortsetzen (${esc(nodeTitle(S.node))})</button>` : ""}
     <ul class="feature-list">
       <li>Stamm mit 5 Stationen, 7 Äste mit 20 Unterästen, über 40 Übungen aus Yoga, Tantra, Schamanismus, Embodiment und Atemforschung</li>
+      <li>Vor jeder Übung: Ausgangsposition, Augen, Hände, Hilfsmittel und Platz – gezeigt und angesagt</li>
       <li>Mini-Test → passende Übung → Re-Test. Jede Übung max. 10 Minuten, mit Stimme, Timer, Atem-Animation und Klang</li>
       <li>Frei navigieren: jeden Punkt im Baum anklicken, mit ◀ ▶ oder den Pfeiltasten vor und zurück</li>
       <li>Sicherheits-Check: intensive Techniken werden bei Risiken automatisch ersetzt</li>
@@ -441,7 +558,17 @@ function slider(id, label, lo, hi, v) {
 }
 function renderCheckin() {
   const c = couple(), col = ST.checkin.color;
-  if (S.phase === "checkin1") {
+  if (S.phase === "room") {
+    const L = c ? [...ROOM, ...ROOM_COUPLE] : ROOM; S.room = S.room || {};
+    show(`<p class="kicker">Der Samen · Raum vorbereiten</p><h2>${c ? "Bereitet euren Raum vor" : "Bereite deinen Raum vor"}</h2>
+      <p>${c ? "Ein geschützter Rahmen macht die Reise tiefer. Nehmt euch zwei Minuten:" : "Ein geschützter Rahmen macht die Reise tiefer. Nimm dir zwei Minuten:"}</p>
+      <div class="room-list">${L.map(([i, t], k) => `<label class="check room${k >= ROOM.length ? " rc" : ""}"><input type="checkbox" data-r="${k}" ${S.room[k] ? "checked" : ""}><span class="ri" aria-hidden="true">${i}</span><span>${esc(t)}</span></label>`).join("")}</div>
+      <p class="small">Es muss nicht alles abgehakt sein – es geht um einen ruhigen, ungestörten Rahmen.</p>
+      <div class="row" style="margin-top:14px"><button class="btn" id="next">${c ? "Unser Raum ist bereit ✦" : "Mein Raum ist bereit ✦"}</button></div>`, col);
+    Narrator.play([c ? "ui_roomc" : "ui_room"]);
+    $$("[data-r]", panel).forEach(b => b.onchange = () => { S.room[b.dataset.r] = b.checked; save(); });
+    $("#next").onclick = () => { S.roomDone = true; S.phase = "checkin1"; render(); };
+  } else if (S.phase === "checkin1") {
     show(`<p class="kicker">Der Samen · Check-in</p><h2>${c ? "Willkommen, ihr zwei." : "Willkommen."}</h2>
       <p>Nimm dir einen Moment. Wo bist du gerade – und wohin möchtest du heute?</p>
       ${c ? `<div class="row"><div style="flex:1"><label for="n1">Name A</label><input type="text" id="n1" value="${esc(S.names[0])}" placeholder="z. B. Alex"></div>
@@ -451,7 +578,8 @@ function renderCheckin() {
       <div class="chips">${INTENTIONS.filter(i => c || !i.includes("Partner")).map(i => `<button class="chip" aria-pressed="${S.chips.includes(i)}">${i}</button>`).join("")}</div>
       <label for="intent">In eigenen Worten (optional)</label>
       <textarea id="intent" placeholder="Ich wünsche mir …">${esc(S.intention)}</textarea>
-      <div class="row" style="margin-top:18px"><button class="btn" id="next">Weiter</button></div>`, col);
+      <div class="row" style="margin-top:18px"><button class="btn ghost" id="back">Zurück</button><button class="btn" id="next">Weiter</button></div>`, col);
+    $("#back").onclick = () => { S.phase = "room"; render(); };
     $$(".chip", panel).forEach(b => b.onclick = () => { const v = b.textContent; const on = S.chips.includes(v); S.chips = on ? S.chips.filter(x => x !== v) : [...S.chips, v]; b.setAttribute("aria-pressed", !on); });
     Narrator.play([c ? "ui_checkin1c" : "ui_checkin1"]);
     $("#next").onclick = () => { S.names = [$("#n1").value.trim(), c ? $("#n2").value.trim() : ""]; S.intention = $("#intent").value.trim(); S.phase = "checkin2"; render(); };
@@ -500,9 +628,25 @@ function routeCard(eid, c, swapped, extra = "") {
   const ex = EXERCISES[eid];
   return `<div class="route-card ${extra}" style="--c:${c}"><div class="illu-mini">${Illu.thumb(ex)}</div>
     <div><p class="kicker" style="margin:0">${ex.couple ? "Paar-Übung" : "Übung"} · ${ex.minutes} min · ${ex.intensity}</p><h3 style="margin:4px 0">${esc(ex.title)}</h3>
+    <p class="pos-line">${POS[setupOf(eid).pos].icon} ${POS[setupOf(eid).pos].label} · 👁 Augen ${esc(setupOf(eid).eyes.split(",")[0])}</p>
     <p class="small" style="margin:0">${esc(ex.intro)}</p>
     ${swapped ? `<p class="small" style="margin:6px 0 0;color:#ffd59a">Sanfte Alternative zu „${esc(EXERCISES[swapped].title)}“ – wegen deines Sicherheits-Checks.</p>` : ""}</div></div>`;
 }
+
+/* ---------- Vorbereitung & Positionswechsel ---------- */
+function prepBlock(s, title = "Vorbereitung") {
+  const P = POS[s.pos];
+  const it = (ico, lbl, val) => val ? `<li><span class="pi" aria-hidden="true">${ico}</span><span><small>${lbl}</small>${esc(val)}</span></li>` : "";
+  return `<div class="prep"><p class="prep-h">${title}</p><ul>
+    ${it(P.icon, "Position", P.label)}${it("👁", "Augen", s.eyes)}${it("✋", "Hände", s.hands)}
+    ${it("🧺", "Hilfsmittel", (s.props || []).join(", "))}${it("📐", "Platz", s.space)}</ul></div>`;
+}
+/* Merkt sich die letzte Körperhaltung; gibt den Ansage-Clip zurück, wenn sie wechselt */
+function posChange(pos) {
+  const prev = S.lastPos; S.lastPos = pos; save();
+  return prev && prev !== pos ? "ui_pos_" + pos : null;
+}
+const posNote = (key, pos) => key ? `<div class="pos-change">↻ Positionswechsel – jetzt: <b>${POS[pos].icon} ${POS[pos].label}</b></div>` : "";
 
 /* ---------- Test-Station (Stamm & Äste) ---------- */
 const RETEST_OK = "Spürst du es? Etwas hat sich gelöst. Nimm dir einen Atemzug, um diese Veränderung bewusst zu würdigen.";
@@ -513,10 +657,12 @@ function renderTest(st) {
   const head = `${banner(ch ? "chakra-" + st.chakra : st.img, c)}<div class="st-head"><div class="st-orb" style="--c:${c}">${esc(ch ? ch.mantra : st.icon)}</div><div><p class="kicker">${where}</p><h2>${esc(st.title)}</h2></div></div>`;
   const back = ch ? treeBack() : "";
   if (S.phase === "test-intro" || S.phase === "retest") {
-    const re = S.phase === "retest";
+    const re = S.phase === "retest", tsu = TEST_SETUP[st.id], chgKey = tsu ? posChange(tsu.pos) : null;
     show(`${head}
       ${re ? `<p class="kicker" style="color:#9fe7ff">Re-Test</p><p>Spür noch einmal nach – genauso wie vorhin. Was hat sich verändert?</p>` : `<p class="lead">${esc(t.intro)}</p>${ch ? `<p class="small">Thema: ${esc(ch.theme)}</p>` : ""}`}
+      ${posNote(chgKey, tsu && tsu.pos)}
       <h3>Mini-Test${couple() ? " – macht ihn beide, jede*r für sich" : ""}</h3>
+      ${tsu ? prepBlock(tsu, "Ausgangsposition") : ""}
       <ol class="steps-do">${t.do.map(x => `<li>${esc(x)}</li>`).join("")}</ol>
       ${t.dot ? `<div class="dot-target" aria-hidden="true"><i></i></div>` : ""}
       <div class="mini-timer"><svg class="ring" viewBox="0 0 80 80"><circle class="bg" cx="40" cy="40" r="34"/><circle class="fg" id="mtFg" cx="40" cy="40" r="34" stroke-dasharray="213.6" stroke-dashoffset="0"/><text x="40" y="41" id="mtT">${t.timer}s</text></svg>
@@ -538,7 +684,7 @@ function renderTest(st) {
           Narrator.play([`st_${st.id}_q${cc}`]); } }, 1000);
     };
     $("#mtGo").onclick = () => startTimer(true);
-    Narrator.play([re ? "ui_retest" : `st_${st.id}_intro`, `st_${st.id}_do${cc}`], { onEnd: () => { const btn = $("#mtGo"); if (btn) setTimeout(() => { if (document.body.contains(btn)) startTimer(false); }, 1200); } });
+    Narrator.play([re ? "ui_retest" : `st_${st.id}_intro`, chgKey, !re && tsu ? `st_${st.id}_prep` : null, `st_${st.id}_do${cc}`].filter(Boolean), { onEnd: () => { const btn = $("#mtGo"); if (btn) setTimeout(() => { if (document.body.contains(btn)) startTimer(false); }, 1200); } });
     $$(".opt", panel).forEach(b => b.onclick = () => { clearInterval(timer); answer(st, t.opts[+b.dataset.i].r); });
     $("#skip").onclick = () => { clearInterval(timer); r.status = "skipped"; ch ? go("hub") : go(nextAfter(st.id)); };
   } else if (S.phase === "route") {
@@ -780,6 +926,7 @@ function openExercise(owner, eid, onDone) {
     let acc = 0; const starts = steps.map(s => { const v = acc; acc += s[0]; return v; });
     const f = flagged();
     const pattern = ex.breath ? BREATH[ex.breath] : null;
+    const su = setupOf(eid), chg = posChange(su.pos);
     ov.style.setProperty("--c", c);
     ov.innerHTML = `<article class="ex-card" style="--c:${c};--tox:${sx}px;--toy:${sy}px">
       <header class="ex-hero" style="--bgimg:url(${new URL("img/" + Illu.poseImg(ex) + ".webp", location.href).href})">
@@ -788,7 +935,9 @@ function openExercise(owner, eid, onDone) {
         <h2 id="exTitle" style="font-size:2.3rem">${esc(ex.title)}</h2>
         <div class="ex-badges"><span class="badge">⏱ ${Math.round(total / 60)} min</span><span class="badge int-${ex.intensity}">${ex.intensity}</span>
           ${ex.origin.map(o => `<span class="badge ${/Anand/.test(o) ? "anand" : ""}">${esc(o)}</span>`).join("")}</div>
+        ${posNote(chg, su.pos)}
         <p class="lead" style="margin-top:10px">${esc(ex.intro)}</p>
+        ${prepBlock(su)}
         ${ex.credit ? `<div class="note" style="--c:#ff9ecb">${esc(ex.credit)}</div>` : ""}
         ${f.includes("psych") ? `<div class="note warn">Du darfst die Augen offen lassen, kleiner machen, pausieren. Wenn es zu viel wird: Füße spüren, Umgebung anschauen, langsam ausatmen.</div>` : ""}
       </header>
@@ -814,7 +963,7 @@ function openExercise(owner, eid, onDone) {
     $("#exClose").focus({ preventScroll: true });
     EXR = { id: eid, ex, total, starts, t: 0, running: false, last: null, stepI: -1, pattern, raf: 0, onDone };
     setStep(0, true);
-    Narrator.play(["ex_" + eid + "_intro"], { delay: 900 });
+    Narrator.play([chg, "ex_" + eid + "_intro", "ex_" + eid + "_prep"].filter(Boolean), { delay: 900 });
     $("#exPlay").onclick = togglePlay;
     const jump = d => { const i = Math.max(0, Math.min(steps.length - 1, EXR.stepI + d)); EXR.t = starts[i]; setStep(i); tickUI(); };
     $("#exNext").onclick = () => jump(1);

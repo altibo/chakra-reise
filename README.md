@@ -11,3 +11,9 @@ Quellen & Recherche: siehe Info-Dialog (i) in der App.
 - **Wipfel**: Integration (Stille, Journal, Vorher/Nachher) – jederzeit erreichbar.
 - Navigation: Klick auf jeden Punkt im Baum, ◀ ▶ / Pfeiltasten, 🌳 zurück zum Baum, ☰ Übersicht, Browser-Zurück.
 - Daten: `js/stations.js` (Stationen, `BRANCHES`, `TRUNK_HINTS`), Übungen in `js/ex-*.js`, Bilder in `img/`, Stimme in `audio/`.
+
+## Vorbereitung & Raum
+- **Raum vorbereiten** zu Beginn jeder Reise: Checkliste (Handy lautlos, ungestörter Raum, bequeme Kleidung, Wasser, Matte/Decke, gedämpftes Licht) – für Paare zusätzlich Zeit, Grenzen und Stopp-Wort vereinbaren. Wird von der Stimme angesagt.
+- Jede Übung und jeder Mini-Test zeigt eine **Vorbereitung**: Position, Augen, Hände, Hilfsmittel, Platz (`js/setup.js`) – und Seraphina sagt sie vor dem ersten Schritt an.
+- Wechselt die Körperhaltung zwischen zwei Übungen/Tests, kündigt die Stimme den **Positionswechsel** kurz an.
+- Die Karte ist ein organischer Lebensbaum: Wurzeln bis zum Rahmenkreis, Stamm mit Rinde, natürlich verzweigte Chakra-Äste – jede Übung ist ein Büschel aus 6–9 Blättern.
